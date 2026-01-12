@@ -12,7 +12,7 @@ from pathlib import Path
 plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
 
-def load_backtest_data(csv_path: str = "tsla_agent_real_profit_backtest.csv"):
+def load_backtest_data(csv_path: str = "result/tsla_agent_real_profit_backtest_2022-01-03_gpt-4o-mini.csv"):
     """
     Load backtest results from CSV file
     
@@ -27,14 +27,47 @@ def load_backtest_data(csv_path: str = "tsla_agent_real_profit_backtest.csv"):
     df = df.set_index('date')
     return df
 
-def visualize_backtest_results(df: pd.DataFrame, output_path: str = "backtest_visualization.png"):
+def visualize_backtest_results(df: pd.DataFrame, csv_path: str = None, output_path: str = None):
     """
     Visualize backtest results
     
     Args:
         df: DataFrame containing backtest data
-        output_path: Path to save the output image
+        csv_path: Path to the CSV file (used to extract metadata for filename)
+        output_path: Path to save the output image (if None, will be auto-generated)
     """
+    # Generate output path if not provided
+    if output_path is None:
+        # Create result/fig folder if it doesn't exist
+        fig_dir = Path("result") / "fig"
+        fig_dir.mkdir(parents=True, exist_ok=True)
+        
+        if csv_path:
+            # Extract filename from csv_path
+            csv_filename = Path(csv_path).stem  # Get filename without extension
+            # CSV filename format: tsla_{开始时间}_{模型名称}_{起始资金} or tsla_llm_outputs_{开始时间}_{模型名称}_{起始资金}
+            # For visualization, we want: tsla_{开始时间}_{模型名称}_{起始资金}.png
+            if csv_filename.startswith("tsla_llm_outputs_"):
+                # Remove 'llm_outputs_' part to get the base name
+                base_name = csv_filename.replace("tsla_llm_outputs_", "tsla_")
+            elif csv_filename.startswith("tsla_"):
+                # Already in correct format
+                base_name = csv_filename
+            else:
+                # If format doesn't match, use the CSV filename as is
+                base_name = csv_filename
+            image_filename = base_name + ".png"
+            output_path = fig_dir / image_filename
+        else:
+            # Fallback: use default name
+            fig_dir = Path("result") / "fig"
+            fig_dir.mkdir(parents=True, exist_ok=True)
+            output_path = fig_dir / "backtest_visualization.png"
+    else:
+        # If output_path is provided, ensure the directory exists
+        output_path_obj = Path(output_path)
+        output_path_obj.parent.mkdir(parents=True, exist_ok=True)
+    
     fig, axes = plt.subplots(2, 1, figsize=(14, 10))
     
     # First subplot: Total capital and cumulative cost
@@ -100,8 +133,10 @@ def visualize_backtest_results(df: pd.DataFrame, output_path: str = "backtest_vi
     ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
     
     plt.tight_layout()
-    plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"Visualization chart saved to: {output_path}")
+    # Convert Path object to string for plt.savefig
+    output_path_str = str(output_path) if isinstance(output_path, Path) else output_path
+    plt.savefig(output_path_str, dpi=300, bbox_inches='tight')
+    print(f"Visualization chart saved to: {output_path_str}")
     
     # Display statistics
     print("\n=== Backtest Statistics ===")
@@ -122,7 +157,7 @@ def visualize_backtest_results(df: pd.DataFrame, output_path: str = "backtest_vi
 
 def main():
     """Main function"""
-    csv_path = "tsla_agent_real_profit_backtest.csv"
+    csv_path = "result/tsla_2022-01-03_gpt-4o-mini_50000.csv"
     
     # Check if file exists
     if not Path(csv_path).exists():
@@ -136,7 +171,7 @@ def main():
     print(f"Data loaded successfully, {len(df)} records")
     
     # Visualize
-    visualize_backtest_results(df)
+    visualize_backtest_results(df, csv_path=csv_path)
 
 if __name__ == "__main__":
     main()

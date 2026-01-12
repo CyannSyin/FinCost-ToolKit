@@ -48,9 +48,6 @@ def get_llm():
     Select different LLM / API providers based on config file.
     Model configuration (provider and model name) is only loaded from config.json.
     API keys are loaded from environment variables.
-    
-    Current implementation:
-      - LLM_PROVIDER = 'openai'  → Use ChatOpenAI
 
     Extension point:
       - In the future, other providers (such as Groq, DeepSeek, etc.) can be integrated here,
@@ -188,7 +185,6 @@ llm = get_llm()
 print("[Step 2] LLM initialized successfully.")
 
 print("[Step 3] Creating agent...")
-# Create agent using create_agent (new API does not require AgentExecutor)
 agent = create_agent(llm, tools=tools)
 print("[Step 3] Agent created successfully.")
 
@@ -213,6 +209,13 @@ else:
 # Adjust dataframe to start from specified date
 df = df.iloc[start_idx:].reset_index(drop=True)
 max_days = len(df) - 1          # Maximum trading days
+
+# Get start date for filename (first date in the adjusted dataframe)
+start_date_for_filename = df.iloc[0]['start'] if len(df) > 0 else "unknown"
+# Sanitize model name for filename (replace special characters)
+model_name_sanitized = LLM_MODEL.replace("/", "-").replace("\\", "-").replace(":", "-")
+# Format initial cash for filename (remove decimal point, e.g., 10000.0 -> 10000)
+initial_cash_for_filename = str(int(initial_cash)) if initial_cash == int(initial_cash) else str(initial_cash).replace(".", "_")
 
 # Cost parameters (loaded from config.json)
 # Interactive Brokers commission structure (Fixed pricing)
@@ -240,6 +243,41 @@ print(f"[Step 4] Starting backtest with {max_days} days...")
 print(f"[Step 4] Initial cash: ${initial_cash:.2f}")
 records = []
 llm_outputs_records = []  # Separate records for LLM outputs
+
+# Create result folder if it doesn't exist
+result_dir = Path("result")
+result_dir.mkdir(exist_ok=True)
+
+# Generate CSV file paths with start date, model name, and initial cash
+main_csv_filename = f"tsla_{start_date_for_filename}_{model_name_sanitized}_{initial_cash_for_filename}.csv"
+llm_outputs_csv_filename = f"tsla_llm_outputs_{start_date_for_filename}_{model_name_sanitized}_{initial_cash_for_filename}.csv"
+main_csv_path = result_dir / main_csv_filename
+llm_outputs_csv_path = result_dir / llm_outputs_csv_filename
+
+print(f"[Step 4] Results will be saved to:")
+print(f"  - Main results: {main_csv_path}")
+print(f"  - LLM outputs: {llm_outputs_csv_path}")
+
+# Initialize CSV files with headers (if files don't exist)
+# We'll create empty DataFrames with the expected columns to get the headers
+main_columns = [
+    "date", "hold_shares", "decision", "requested_quantity", "actual_quantity",
+    "market_value", "daily_gross_pnl", "trade_count", "daily_trading_cost",
+    "daily_llm_input_tokens", "daily_llm_output_tokens", "daily_llm_cost_usd",
+    "daily_infra_cost", "daily_random_cost", "monthly_data_subscription_cost",
+    "daily_total_cost", "cumulative_cost", "cumulative_net_profit", "slippage_usd"
+]
+llm_columns = [
+    "date", "day", "current_price", "available_cash", "current_shares",
+    "decision", "requested_quantity", "actual_quantity", "llm_output",
+    "input_tokens", "output_tokens", "llm_cost_usd"
+]
+
+# Create CSV files with headers if they don't exist
+if not main_csv_path.exists():
+    pd.DataFrame(columns=main_columns).to_csv(main_csv_path, index=False)
+if not llm_outputs_csv_path.exists():
+    pd.DataFrame(columns=llm_columns).to_csv(llm_outputs_csv_path, index=False)
 
 cash = initial_cash
 shares = 0
@@ -452,7 +490,7 @@ Always provide your reasoning before the decision statement.
     cumulative_net_profit = cumulative_gross_profit - cumulative_cost
 
     # Record
-    records.append({
+    record = {
         "date": date_str,
         "hold_shares": shares,
         "decision": action,
@@ -472,10 +510,14 @@ Always provide your reasoning before the decision statement.
         "cumulative_cost": round(cumulative_cost, 2),
         "cumulative_net_profit": round(cumulative_net_profit, 2),
         "slippage_usd": round(slippage, 2)
-    })
+    }
+    records.append(record)
+    
+    # Immediately write to CSV file (append mode)
+    pd.DataFrame([record]).to_csv(main_csv_path, mode='a', header=False, index=False)
     
     # Record LLM output separately
-    llm_outputs_records.append({
+    llm_record = {
         "date": date_str,
         "day": i + 1,
         "current_price": round(current_price, 3),
@@ -488,7 +530,11 @@ Always provide your reasoning before the decision statement.
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "llm_cost_usd": round(llm_cost, 6)
-    })
+    }
+    llm_outputs_records.append(llm_record)
+    
+    # Immediately write to CSV file (append mode)
+    pd.DataFrame([llm_record]).to_csv(llm_outputs_csv_path, mode='a', header=False, index=False)
 
     # Termination judgment
     # if market_value < daily_total_cost * 30:  # Expected unable to cover future 1 month costs
@@ -515,25 +561,22 @@ Always provide your reasoning before the decision statement.
         break
 
 # -------------------------- 6. Save Results --------------------------
+# Results have been written to CSV files in real-time during the loop
 result_df = pd.DataFrame(records)
-result_df.to_csv("tsla_agent_real_profit_backtest.csv", index=False)
-
-# Save LLM outputs to separate CSV
-llm_outputs_df = pd.DataFrame(llm_outputs_records)
-llm_outputs_df.to_csv("tsla_agent_llm_outputs.csv", index=False)
 
 print("\nBacktest completed! Results saved:")
-print(f"  - Main results: tsla_agent_real_profit_backtest.csv")
-print(f"  - LLM outputs: tsla_agent_llm_outputs.csv")
+print(f"  - Main results: {main_csv_path}")
+print(f"  - LLM outputs: {llm_outputs_csv_path}")
 print(f"Total trading days: {len(result_df)}")
-print(f"Final market value: ${result_df.iloc[-1]['market_value']:.2f}")
-print(f"Cumulative total cost: ${result_df.iloc[-1]['cumulative_cost']:.2f}")
-print(f"Cumulative net profit: ${result_df.iloc[-1]['cumulative_net_profit']:.2f}")
+if len(result_df) > 0:
+    print(f"Final market value: ${result_df.iloc[-1]['market_value']:.2f}")
+    print(f"Cumulative total cost: ${result_df.iloc[-1]['cumulative_cost']:.2f}")
+    print(f"Cumulative net profit: ${result_df.iloc[-1]['cumulative_net_profit']:.2f}")
 
-# Display last 10 days
-print("\nLast 10 days records:")
-print(result_df[[
-    'date', 'hold_shares', 'decision', 'market_value',
-    'daily_total_cost', 'daily_llm_cost_usd',
-    'cumulative_cost', 'cumulative_net_profit'
-]].tail(10))
+    # Display last 10 days
+    print("\nLast 10 days records:")
+    print(result_df[[
+        'date', 'hold_shares', 'decision', 'market_value',
+        'daily_total_cost', 'daily_llm_cost_usd',
+        'cumulative_cost', 'cumulative_net_profit'
+    ]].tail(10))
