@@ -1,9 +1,10 @@
 {
   "llm_provider": "aihubmix",
-  "llm_model": "gpt-4o-mini",
+  "llm_model": "gpt-5-mini",
   "llm_base_url": "https://api.aihubmix.com/v1",
   "start_date": "2018-01-03",
-  "initial_cash": 50000.0,
+  "end_date": "2018-12-30",
+  "initial_cash": 100000.0,
   "commission_type": "fixed",
   "commission_per_share": 0.005,
   "commission_minimum": 1.0,
@@ -11,8 +12,8 @@
   "infra_daily": 0.5,
   "random_cost_min": 0.0,
   "random_cost_max": 1.0,
-  "input_price_per_k_tokens": 0.00000015,
-  "output_price_per_k_tokens": 0.00000060,
+  "input_price_per_k_tokens": 0.00000025,
+  "output_price_per_k_tokens": 0.000002,
   "data_subscription_monthly": 300.0
 }
 

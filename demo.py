@@ -206,6 +206,19 @@ else:
     start_idx = 0
     print(f"[Config] No start_date specified, starting from first date in dataset: {df.iloc[0]['start']}")
 
+# End date configuration (from config.json or None to use termination conditions)
+end_date_str = CONFIG.get("end_date")  # Format: "YYYY-MM-DD" or None to use termination conditions
+end_date = None
+if end_date_str:
+    try:
+        end_date = pd.to_datetime(end_date_str)
+        print(f"[Config] End date specified: {end_date_str}")
+    except Exception as e:
+        print(f"[Warning] Invalid end_date format: {end_date_str}. Will use termination conditions instead.")
+        end_date = None
+else:
+    print(f"[Config] No end_date specified, will use termination conditions to stop")
+
 # Adjust dataframe to start from specified date
 df = df.iloc[start_idx:].reset_index(drop=True)
 max_days = len(df) - 1          # Maximum trading days
@@ -537,28 +550,35 @@ Always provide your reasoning before the decision statement.
     pd.DataFrame([llm_record]).to_csv(llm_outputs_csv_path, mode='a', header=False, index=False)
 
     # Termination judgment
-    # if market_value < daily_total_cost * 30:  # Expected unable to cover future 1 month costs
-    #     print(f"[Bankruptcy Termination] Date: {date_str}, Remaining market value: ${market_value:.2f}, Ran for {i+1} days")
-    #     break
+    # If end_date is set, only check end date and ignore other termination conditions
+    if end_date is not None:
+        if current_date >= end_date:
+            print(f"[End Date Reached] Date: {date_str}, Reached specified end date: {end_date_str}, Ran for {i+1} days")
+            break
+    else:
+        # Only check other termination conditions if end_date is not set
+        # if market_value < daily_total_cost * 30:  # Expected unable to cover future 1 month costs
+        #     print(f"[Bankruptcy Termination] Date: {date_str}, Remaining market value: ${market_value:.2f}, Ran for {i+1} days")
+        #     break
 
-    if market_value < daily_total_cost:
-        print(f"[Bankruptcy Termination] Date: {date_str}, Remaining market value: ${market_value:.2f}, Ran for {i+1} days")
-        break
+        if market_value < daily_total_cost:
+            print(f"[Bankruptcy Termination] Date: {date_str}, Remaining market value: ${market_value:.2f}, Ran for {i+1} days")
+            break
 
-    # if i > 60:  # Run at least 60 days before judging balance
-    #     recent_records = pd.DataFrame(records[-30:])
-    #     avg_daily_cost = recent_records['daily_total_cost'].mean()
-    #     avg_daily_net = recent_records['cumulative_net_profit'].diff().mean()
-    #     if cumulative_net_profit >= 0 and avg_daily_net > avg_daily_cost * 1.1:
-    #         print(f"[Balance Achieved] Date: {date_str}, Time taken: {i+1} days, Cumulative net profit: ${cumulative_net_profit:.2f}")
-    #         break
+        # if i > 60:  # Run at least 60 days before judging balance
+        #     recent_records = pd.DataFrame(records[-30:])
+        #     avg_daily_cost = recent_records['daily_total_cost'].mean()
+        #     avg_daily_net = recent_records['cumulative_net_profit'].diff().mean()
+        #     if cumulative_net_profit >= 0 and avg_daily_net > avg_daily_cost * 1.1:
+        #         print(f"[Balance Achieved] Date: {date_str}, Time taken: {i+1} days, Cumulative net profit: ${cumulative_net_profit:.2f}")
+        #         break
 
-    recent_records = pd.DataFrame(records[-30:])
-    avg_daily_cost = recent_records['daily_total_cost'].mean()
-    avg_daily_net = recent_records['cumulative_net_profit'].diff().mean()
-    if cumulative_net_profit >= 0 and avg_daily_net > avg_daily_cost * 1.1:
-        print(f"[Balance Achieved] Date: {date_str}, Time taken: {i+1} days, Cumulative net profit: ${cumulative_net_profit:.2f}")
-        break
+        recent_records = pd.DataFrame(records[-30:])
+        avg_daily_cost = recent_records['daily_total_cost'].mean()
+        avg_daily_net = recent_records['cumulative_net_profit'].diff().mean()
+        if cumulative_net_profit >= 0 and avg_daily_net > avg_daily_cost * 1.1:
+            print(f"[Balance Achieved] Date: {date_str}, Time taken: {i+1} days, Cumulative net profit: ${cumulative_net_profit:.2f}")
+            break
 
 # -------------------------- 6. Save Results --------------------------
 # Results have been written to CSV files in real-time during the loop
