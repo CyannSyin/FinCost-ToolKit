@@ -539,10 +539,286 @@ def visualize_backtest_results(df: pd.DataFrame, csv_path: str = None, output_pa
     
     # Create time series stacked area chart
     create_time_series_stacked_chart(df, csv_path, output_path)
+    
+    # Create cost breakdown visualization
+    create_cost_breakdown_chart(df, csv_path, output_path)
+    
+    # Create final cost pie chart
+    create_final_cost_pie_chart(df, csv_path, output_path)
+
+def create_cost_breakdown_chart(df: pd.DataFrame, csv_path: str = None, output_path: str = None):
+    """
+    Create a visualization showing the breakdown of cumulative costs by component
+    
+    Args:
+        df: DataFrame containing backtest data
+        csv_path: Path to the CSV file (used to extract metadata for filename)
+        output_path: Path to save the output image (if None, will be auto-generated)
+    """
+    # Calculate cumulative costs for each component
+    cumulative_trading_cost = df['daily_trading_cost'].cumsum()
+    cumulative_llm_cost = df['daily_llm_cost_usd'].cumsum()
+    cumulative_infra_cost = df['daily_infra_cost'].cumsum()
+    cumulative_random_cost = df['daily_random_cost'].cumsum()
+    cumulative_subscription_cost = df['monthly_data_subscription_cost'].cumsum()
+    
+    # Get final cumulative values
+    final_trading_cost = cumulative_trading_cost.iloc[-1]
+    final_llm_cost = cumulative_llm_cost.iloc[-1]
+    final_infra_cost = cumulative_infra_cost.iloc[-1]
+    final_random_cost = cumulative_random_cost.iloc[-1]
+    final_subscription_cost = cumulative_subscription_cost.iloc[-1]
+    
+    # Generate output path for cost breakdown chart
+    if output_path:
+        output_path_obj = Path(output_path)
+        cost_breakdown_path = output_path_obj.parent / (output_path_obj.stem + "_cost_breakdown.png")
+    else:
+        fig_dir = Path("result") / "fig"
+        fig_dir.mkdir(parents=True, exist_ok=True)
+        if csv_path:
+            csv_filename = Path(csv_path).stem
+            if csv_filename.startswith("tsla_llm_outputs_"):
+                base_name = csv_filename.replace("tsla_llm_outputs_", "tsla_")
+            elif csv_filename.startswith("tsla_"):
+                base_name = csv_filename
+            else:
+                base_name = csv_filename
+            cost_breakdown_path = fig_dir / (base_name + "_cost_breakdown.png")
+        else:
+            cost_breakdown_path = fig_dir / "backtest_cost_breakdown.png"
+    
+    # Create figure with two subplots: Stacked Bar Chart and Pie Chart
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    
+    # Stacked Bar Chart
+    categories = ['Cost Breakdown']
+    cost_components = [
+        final_trading_cost,
+        final_llm_cost,
+        final_infra_cost,
+        final_random_cost,
+        final_subscription_cost
+    ]
+    cost_labels = [
+        'Trading Cost',
+        'LLM Cost',
+        'Infrastructure Cost',
+        'Random Cost',
+        'Data Subscription Cost'
+    ]
+    colors = ['#A23B72', '#2E86AB', '#06A77D', '#F18F01', '#6C5CE7']
+    
+    # Calculate bottom positions for stacking
+    bottoms = [0]
+    for i in range(len(cost_components) - 1):
+        bottoms.append(bottoms[-1] + cost_components[i])
+    
+    # Create stacked bar
+    for i, (cost, label, color, bottom) in enumerate(zip(cost_components, cost_labels, colors, bottoms)):
+        if cost > 0:
+            ax1.bar(categories, [cost], bottom=[bottom], label=label, color=color, alpha=0.8)
+    
+    ax1.set_ylabel('Cumulative Cost (USD)', fontsize=12)
+    ax1.set_title('Final Cost Breakdown by Component', fontsize=14, fontweight='bold')
+    ax1.legend(loc='upper right', fontsize=10)
+    ax1.grid(True, alpha=0.3, axis='y')
+    ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
+    
+    # Add value labels on bars
+    total_cost = sum(cost_components)
+    current_bottom = 0
+    for i, (cost, label) in enumerate(zip(cost_components, cost_labels)):
+        if cost > 0:
+            ax1.text(0, current_bottom + cost / 2, f'${cost:,.0f}', 
+                    ha='center', va='center', fontsize=9, fontweight='bold', color='white')
+            current_bottom += cost
+    ax1.text(0, total_cost + total_cost * 0.02, f'Total: ${total_cost:,.0f}', 
+            ha='center', va='bottom', fontsize=11, fontweight='bold')
+    
+    # Pie Chart
+    # Only include non-zero components
+    sizes = []
+    labels_pie = []
+    colors_pie = []
+    explode_list = []
+    
+    for cost, label, color in zip(cost_components, cost_labels, colors):
+        if cost > 0:
+            sizes.append(cost)
+            labels_pie.append(label)
+            colors_pie.append(color)
+            explode_list.append(0.05)
+    
+    if len(sizes) > 0 and sum(sizes) > 0:
+        # Calculate percentages
+        total = sum(sizes)
+        labels_with_pct = []
+        for cost, label in zip(sizes, labels_pie):
+            pct = (cost / total) * 100
+            labels_with_pct.append(f'{label}\n${cost:,.0f}\n({pct:.1f}%)')
+        
+        explode_tuple = tuple(explode_list)
+        
+        wedges, texts, autotexts = ax2.pie(sizes, labels=labels_with_pct, colors=colors_pie, 
+                                           explode=explode_tuple, autopct='', startangle=90, 
+                                           textprops={'fontsize': 9})
+        
+        # Make percentage text bold
+        for autotext in autotexts:
+            autotext.set_color('white')
+            autotext.set_fontweight('bold')
+        
+        ax2.set_title('Cost Breakdown Distribution', fontsize=14, fontweight='bold')
+    else:
+        ax2.text(0.5, 0.5, 'No cost data available', ha='center', va='center', fontsize=12)
+        ax2.set_title('Cost Breakdown Distribution', fontsize=14, fontweight='bold')
+    
+    plt.tight_layout()
+    cost_breakdown_path_str = str(cost_breakdown_path) if isinstance(cost_breakdown_path, Path) else cost_breakdown_path
+    plt.savefig(cost_breakdown_path_str, dpi=300, bbox_inches='tight')
+    print(f"Cost breakdown chart saved to: {cost_breakdown_path_str}")
+    plt.show()
+    
+    # Print cost breakdown statistics
+    print("\n=== Cost Breakdown Statistics ===")
+    print(f"Total cumulative cost: ${total_cost:,.2f}")
+    if total_cost > 0:
+        print(f"  - Trading Cost: ${final_trading_cost:,.2f} ({(final_trading_cost/total_cost*100):.2f}%)")
+        print(f"  - LLM Cost: ${final_llm_cost:,.2f} ({(final_llm_cost/total_cost*100):.2f}%)")
+        print(f"  - Infrastructure Cost: ${final_infra_cost:,.2f} ({(final_infra_cost/total_cost*100):.2f}%)")
+        print(f"  - Random Cost: ${final_random_cost:,.2f} ({(final_random_cost/total_cost*100):.2f}%)")
+        print(f"  - Data Subscription Cost: ${final_subscription_cost:,.2f} ({(final_subscription_cost/total_cost*100):.2f}%)")
+    else:
+        print("  No costs recorded")
+
+def create_final_cost_pie_chart(df: pd.DataFrame, csv_path: str = None, output_path: str = None):
+    """
+    Create a pie chart showing the final cumulative cost breakdown by component
+    
+    Args:
+        df: DataFrame containing backtest data
+        csv_path: Path to the CSV file (used to extract metadata for filename)
+        output_path: Path to save the output image (if None, will be auto-generated)
+    """
+    # Calculate cumulative costs for each component
+    cumulative_trading_cost = df['daily_trading_cost'].cumsum()
+    cumulative_llm_cost = df['daily_llm_cost_usd'].cumsum()
+    cumulative_infra_cost = df['daily_infra_cost'].cumsum()
+    cumulative_random_cost = df['daily_random_cost'].cumsum()
+    cumulative_subscription_cost = df['monthly_data_subscription_cost'].cumsum()
+    
+    # Get final cumulative values
+    final_trading_cost = cumulative_trading_cost.iloc[-1]
+    final_llm_cost = cumulative_llm_cost.iloc[-1]
+    final_infra_cost = cumulative_infra_cost.iloc[-1]
+    final_random_cost = cumulative_random_cost.iloc[-1]
+    final_subscription_cost = cumulative_subscription_cost.iloc[-1]
+    
+    # Generate output path for cost pie chart
+    if output_path:
+        output_path_obj = Path(output_path)
+        cost_pie_path = output_path_obj.parent / (output_path_obj.stem + "_cost_pie.png")
+    else:
+        fig_dir = Path("result") / "fig"
+        fig_dir.mkdir(parents=True, exist_ok=True)
+        if csv_path:
+            csv_filename = Path(csv_path).stem
+            if csv_filename.startswith("tsla_llm_outputs_"):
+                base_name = csv_filename.replace("tsla_llm_outputs_", "tsla_")
+            elif csv_filename.startswith("tsla_"):
+                base_name = csv_filename
+            else:
+                base_name = csv_filename
+            cost_pie_path = fig_dir / (base_name + "_cost_pie.png")
+        else:
+            cost_pie_path = fig_dir / "backtest_cost_pie.png"
+    
+    # Prepare data for pie chart
+    cost_components = [
+        final_trading_cost,
+        final_llm_cost,
+        final_infra_cost,
+        final_random_cost,
+        final_subscription_cost
+    ]
+    cost_labels = [
+        'Trading Cost',
+        'LLM Cost',
+        'Infrastructure Cost',
+        'Random Cost',
+        'Data Subscription Cost'
+    ]
+    colors = ['#A23B72', '#2E86AB', '#06A77D', '#F18F01', '#6C5CE7']
+    
+    # Filter out zero values
+    sizes = []
+    labels_pie = []
+    colors_pie = []
+    explode_list = []
+    
+    for cost, label, color in zip(cost_components, cost_labels, colors):
+        if cost > 0:
+            sizes.append(cost)
+            labels_pie.append(label)
+            colors_pie.append(color)
+            explode_list.append(0.05)
+    
+    # Create figure
+    fig, ax = plt.subplots(1, 1, figsize=(10, 8))
+    
+    if len(sizes) > 0 and sum(sizes) > 0:
+        # Calculate percentages
+        total = sum(sizes)
+        labels_with_pct = []
+        for cost, label in zip(sizes, labels_pie):
+            pct = (cost / total) * 100
+            labels_with_pct.append(f'{label}\n${cost:,.2f}\n({pct:.1f}%)')
+        
+        explode_tuple = tuple(explode_list)
+        
+        wedges, texts, autotexts = ax.pie(sizes, labels=labels_with_pct, colors=colors_pie, 
+                                          explode=explode_tuple, autopct='', startangle=90, 
+                                          textprops={'fontsize': 10})
+        
+        # Make percentage text bold
+        for autotext in autotexts:
+            autotext.set_color('white')
+            autotext.set_fontweight('bold')
+        
+        ax.set_title('Final Cumulative Cost Breakdown', fontsize=16, fontweight='bold', pad=20)
+        
+        # Add total cost text below the pie chart
+        total_cost_text = f'Total Cumulative Cost: ${total:,.2f}'
+        ax.text(0, -1.3, total_cost_text, ha='center', va='center', 
+               fontsize=12, fontweight='bold', 
+               bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    else:
+        ax.text(0.5, 0.5, 'No cost data available', ha='center', va='center', fontsize=12)
+        ax.set_title('Final Cumulative Cost Breakdown', fontsize=16, fontweight='bold')
+    
+    plt.tight_layout()
+    cost_pie_path_str = str(cost_pie_path) if isinstance(cost_pie_path, Path) else cost_pie_path
+    plt.savefig(cost_pie_path_str, dpi=300, bbox_inches='tight')
+    print(f"Final cost pie chart saved to: {cost_pie_path_str}")
+    plt.show()
+    
+    # Print cost breakdown statistics
+    total_cost = sum(cost_components)
+    print("\n=== Final Cumulative Cost Breakdown ===")
+    print(f"Total cumulative cost: ${total_cost:,.2f}")
+    if total_cost > 0:
+        print(f"  - Trading Cost: ${final_trading_cost:,.2f} ({(final_trading_cost/total_cost*100):.2f}%)")
+        print(f"  - LLM Cost: ${final_llm_cost:,.2f} ({(final_llm_cost/total_cost*100):.2f}%)")
+        print(f"  - Infrastructure Cost: ${final_infra_cost:,.2f} ({(final_infra_cost/total_cost*100):.2f}%)")
+        print(f"  - Random Cost: ${final_random_cost:,.2f} ({(final_random_cost/total_cost*100):.2f}%)")
+        print(f"  - Data Subscription Cost: ${final_subscription_cost:,.2f} ({(final_subscription_cost/total_cost*100):.2f}%)")
+    else:
+        print("  No costs recorded")
 
 def main():
     """Main function"""
-    csv_path = "result/tsla_2018-01-03_gpt-4o-mini_1000000.csv"
+    csv_path = "result/tsla_2018-01-03_gpt-5-mini_100000.csv"
     
     # Check if file exists
     if not Path(csv_path).exists():
