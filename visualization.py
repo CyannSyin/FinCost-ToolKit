@@ -4,6 +4,7 @@ Display curves of total capital (cash + holdings), cumulative cost, and total as
 """
 
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from pathlib import Path
@@ -271,9 +272,25 @@ def create_time_series_stacked_chart(df: pd.DataFrame, csv_path: str = None, out
             current_price = merged_df.loc[date, 'current_price']
             available_cash = merged_df.loc[date, 'available_cash']
             
-            holdings_value.loc[date] = hold_shares * current_price if pd.notna(current_price) else 0
-            # Set negative cash to 0
-            cash.loc[date] = max(0, available_cash) if pd.notna(available_cash) else 0
+            # Ensure we get scalar values and handle NaN properly
+            if isinstance(current_price, pd.Series):
+                current_price = current_price.iloc[0] if len(current_price) > 0 else np.nan
+            if isinstance(available_cash, pd.Series):
+                available_cash = available_cash.iloc[0] if len(available_cash) > 0 else np.nan
+            if isinstance(hold_shares, pd.Series):
+                hold_shares = hold_shares.iloc[0] if len(hold_shares) > 0 else 0
+            
+            # Calculate holdings value, handling NaN
+            if pd.isna(current_price) or pd.isna(hold_shares):
+                holdings_value.loc[date] = 0
+            else:
+                holdings_value.loc[date] = float(hold_shares) * float(current_price)
+            
+            # Set negative cash to 0, handling NaN
+            if pd.isna(available_cash):
+                cash.loc[date] = 0
+            else:
+                cash.loc[date] = max(0, float(available_cash))
     else:
         # Fallback: estimate from market_value
         # Assume cash is a percentage of market_value, adjust based on hold_shares
@@ -402,7 +419,7 @@ def visualize_backtest_results(df: pd.DataFrame, csv_path: str = None, output_pa
         output_path_obj = Path(output_path)
         output_path_obj.parent.mkdir(parents=True, exist_ok=True)
     
-    fig, axes = plt.subplots(3, 1, figsize=(14, 15))
+    fig, axes = plt.subplots(4, 1, figsize=(14, 20))
     
     # First subplot: Total capital and cumulative cost
     ax1 = axes[0]
@@ -511,6 +528,69 @@ def visualize_backtest_results(df: pd.DataFrame, csv_path: str = None, output_pa
     # Format y-axis as currency
     ax3.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
     
+    # Fourth subplot: Cumulative cost components over time
+    ax4 = axes[3]
+    
+    # Verify required columns exist
+    required_cost_columns = ['daily_trading_cost', 'daily_llm_cost_usd', 'daily_infra_cost', 
+                             'daily_random_cost', 'monthly_data_subscription_cost']
+    missing_columns = [col for col in required_cost_columns if col not in df.columns]
+    if missing_columns:
+        print(f"[Warning] Missing cost columns: {missing_columns}. Skipping cost breakdown chart.")
+        ax4.text(0.5, 0.5, f'Missing columns: {missing_columns}', 
+                transform=ax4.transAxes, ha='center', va='center', fontsize=12)
+        ax4.set_title('Cumulative Cost Components Over Time (Data Unavailable)', fontsize=14, fontweight='bold')
+    else:
+        # Calculate cumulative costs for each component
+        cumulative_trading_cost = df['daily_trading_cost'].cumsum()
+        cumulative_llm_cost = df['daily_llm_cost_usd'].cumsum()
+        cumulative_infra_cost = df['daily_infra_cost'].cumsum()
+        cumulative_random_cost = df['daily_random_cost'].cumsum()
+        cumulative_subscription_cost = df['monthly_data_subscription_cost'].cumsum()
+        
+        # Plot each cumulative cost component
+        ax4.plot(df.index, cumulative_trading_cost, 
+                 label='Cumulative Trading Cost', 
+                 linewidth=2, 
+                 color='#A23B72',
+                 linestyle='-')
+        
+        ax4.plot(df.index, cumulative_llm_cost, 
+                 label='Cumulative LLM Cost', 
+                 linewidth=2, 
+                 color='#2E86AB',
+                 linestyle='-')
+        
+        ax4.plot(df.index, cumulative_infra_cost, 
+                 label='Cumulative Infrastructure Cost', 
+                 linewidth=2, 
+                 color='#06A77D',
+                 linestyle='-')
+        
+        ax4.plot(df.index, cumulative_random_cost, 
+                 label='Cumulative Random Cost', 
+                 linewidth=2, 
+                 color='#F18F01',
+                 linestyle='-')
+        
+        ax4.plot(df.index, cumulative_subscription_cost, 
+                 label='Cumulative Data Subscription Cost', 
+                 linewidth=2, 
+                 color='#6C5CE7',
+                 linestyle='-')
+        
+        ax4.set_xlabel('Date', fontsize=12)
+        ax4.set_ylabel('Cumulative Cost (USD)', fontsize=12)
+        ax4.set_title('Cumulative Cost Components Over Time', fontsize=14, fontweight='bold')
+        ax4.legend(loc='best', fontsize=10)
+        ax4.grid(True, alpha=0.3)
+        ax4.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        ax4.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+        plt.setp(ax4.xaxis.get_majorticklabels(), rotation=45, ha='right')
+        
+        # Format y-axis as currency
+        ax4.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
+    
     plt.tight_layout()
     # Convert Path object to string for plt.savefig
     output_path_str = str(output_path) if isinstance(output_path, Path) else output_path
@@ -545,6 +625,120 @@ def visualize_backtest_results(df: pd.DataFrame, csv_path: str = None, output_pa
     
     # Create final cost pie chart
     create_final_cost_pie_chart(df, csv_path, output_path)
+    
+    # Create daily costs time series chart (excluding monthly subscription)
+    create_daily_costs_time_series_chart(df, csv_path, output_path)
+
+def create_daily_costs_time_series_chart(df: pd.DataFrame, csv_path: str = None, output_path: str = None):
+    """
+    Create a time series chart showing cumulative daily costs over time (excluding monthly subscription cost)
+    
+    Args:
+        df: DataFrame containing backtest data
+        csv_path: Path to the CSV file (used to extract metadata for filename)
+        output_path: Path to save the output image (if None, will be auto-generated)
+    """
+    # Verify required columns exist
+    required_cost_columns = ['daily_trading_cost', 'daily_llm_cost_usd', 'daily_infra_cost', 
+                             'daily_random_cost']
+    missing_columns = [col for col in required_cost_columns if col not in df.columns]
+    if missing_columns:
+        print(f"[Warning] Missing cost columns: {missing_columns}. Skipping daily costs time series chart.")
+        return
+    
+    # Calculate cumulative costs for each daily component (excluding monthly subscription)
+    cumulative_trading_cost = df['daily_trading_cost'].cumsum()
+    cumulative_llm_cost = df['daily_llm_cost_usd'].cumsum()
+    cumulative_infra_cost = df['daily_infra_cost'].cumsum()
+    cumulative_random_cost = df['daily_random_cost'].cumsum()
+    
+    # Generate output path for daily costs time series chart
+    if output_path:
+        output_path_obj = Path(output_path)
+        daily_costs_timeseries_path = output_path_obj.parent / (output_path_obj.stem + "_daily_costs_timeseries.png")
+    else:
+        fig_dir = Path("result") / "fig"
+        fig_dir.mkdir(parents=True, exist_ok=True)
+        if csv_path:
+            csv_filename = Path(csv_path).stem
+            if csv_filename.startswith("tsla_llm_outputs_"):
+                base_name = csv_filename.replace("tsla_llm_outputs_", "tsla_")
+            elif csv_filename.startswith("tsla_"):
+                base_name = csv_filename
+            else:
+                base_name = csv_filename
+            daily_costs_timeseries_path = fig_dir / (base_name + "_daily_costs_timeseries.png")
+        else:
+            daily_costs_timeseries_path = fig_dir / "backtest_daily_costs_timeseries.png"
+    
+    # Create figure for time series chart
+    fig, ax = plt.subplots(1, 1, figsize=(14, 8))
+    
+    # Define colors for each cost component
+    colors = {
+        'Trading Cost': '#A23B72',
+        'LLM Cost': '#2E86AB',
+        'Infrastructure Cost': '#06A77D',
+        'Random Cost': '#F18F01'
+    }
+    
+    # Plot cumulative costs over time
+    ax.plot(df.index, cumulative_trading_cost, 
+            label='Cumulative Trading Cost', 
+            linewidth=2, 
+            color=colors['Trading Cost'])
+    
+    ax.plot(df.index, cumulative_llm_cost, 
+            label='Cumulative LLM Cost', 
+            linewidth=2, 
+            color=colors['LLM Cost'])
+    
+    ax.plot(df.index, cumulative_infra_cost, 
+            label='Cumulative Infrastructure Cost', 
+            linewidth=2, 
+            color=colors['Infrastructure Cost'])
+    
+    ax.plot(df.index, cumulative_random_cost, 
+            label='Cumulative Random Cost', 
+            linewidth=2, 
+            color=colors['Random Cost'])
+    
+    # Add total cumulative daily cost line for reference
+    total_cumulative_daily_cost = (cumulative_trading_cost + cumulative_llm_cost + 
+                                   cumulative_infra_cost + cumulative_random_cost)
+    ax.plot(df.index, total_cumulative_daily_cost, 
+            label='Total Cumulative Daily Cost', 
+            linewidth=2.5, 
+            color='#000000', 
+            linestyle='--', 
+            alpha=0.7)
+    
+    ax.set_xlabel('Date', fontsize=12)
+    ax.set_ylabel('Cumulative Cost (USD)', fontsize=12)
+    ax.set_title('Cumulative Daily Costs Over Time (Excluding Monthly Subscription)', 
+                 fontsize=14, fontweight='bold')
+    ax.legend(loc='best', fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+    
+    # Format y-axis as currency
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
+    
+    plt.tight_layout()
+    daily_costs_timeseries_path_str = str(daily_costs_timeseries_path) if isinstance(daily_costs_timeseries_path, Path) else daily_costs_timeseries_path
+    plt.savefig(daily_costs_timeseries_path_str, dpi=300, bbox_inches='tight')
+    print(f"Daily costs time series chart saved to: {daily_costs_timeseries_path_str}")
+    plt.show()
+    
+    # Print final cumulative cost values
+    print("\n=== Final Cumulative Daily Costs (Excluding Monthly Subscription) ===")
+    print(f"Trading Cost: ${cumulative_trading_cost.iloc[-1]:,.2f}")
+    print(f"LLM Cost: ${cumulative_llm_cost.iloc[-1]:,.2f}")
+    print(f"Infrastructure Cost: ${cumulative_infra_cost.iloc[-1]:,.2f}")
+    print(f"Random Cost: ${cumulative_random_cost.iloc[-1]:,.2f}")
+    print(f"Total Cumulative Daily Cost: ${total_cumulative_daily_cost.iloc[-1]:,.2f}")
 
 def create_cost_breakdown_chart(df: pd.DataFrame, csv_path: str = None, output_path: str = None):
     """
@@ -818,7 +1012,7 @@ def create_final_cost_pie_chart(df: pd.DataFrame, csv_path: str = None, output_p
 
 def main():
     """Main function"""
-    csv_path = "result/tsla_2018-01-03_gpt-5-mini_100000.csv"
+    csv_path = "result/tsla_2018-01-03_gpt-4o-mini_50000.csv"
     
     # Check if file exists
     if not Path(csv_path).exists():
