@@ -1012,7 +1012,7 @@ def create_final_cost_pie_chart(df: pd.DataFrame, csv_path: str = None, output_p
 
 def main():
     """Main function"""
-    csv_path = "result/tsla_2025-03-15_gpt-5-mini_100000.csv"
+    csv_path = "result/tsla_2025-06-01_gpt-5-mini_100000.csv"
     
     # Check if file exists
     if not Path(csv_path).exists():

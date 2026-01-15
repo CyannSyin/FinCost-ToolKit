@@ -606,8 +606,8 @@ print(f"  - LLM inputs: {llm_inputs_csv_path}")
 # We'll create empty DataFrames with the expected columns to get the headers
 main_columns = [
     "date", "hold_shares", "decision", "requested_quantity", "actual_quantity",
-    "market_value", "daily_gross_pnl", "trade_count",
-    "daily_commission_cost", "daily_trading_cost",
+    "market_value", "available_cash", "daily_gross_pnl", "trade_count",
+    "daily_trading_cost",
     "daily_llm_input_tokens", "daily_llm_output_tokens", "daily_llm_cost_usd",
     "daily_infra_cost", "daily_random_cost", "monthly_data_subscription_cost",
     "daily_total_cost", "cumulative_cost", "cumulative_net_profit", "slippage_usd"
@@ -990,7 +990,8 @@ Please analyze BOTH the price data AND the news information provided above. You 
         commission = calculate_commission(actual_quantity, trade_value)
     else:
         commission = 0.0
-    trading_cost_today = commission + slippage
+    # trading_cost_today = commission + slippage
+    trading_cost_today = commission
 
     # Other costs
     infra_cost = INFRA_DAILY
@@ -1013,10 +1014,10 @@ Please analyze BOTH the price data AND the news information provided above. You 
         "requested_quantity": quantity,  # Agent requested quantity
         "actual_quantity": actual_quantity,  # Actually executed quantity
         "market_value": round(market_value, 2),
+        "available_cash": round(cash, 2),
         "daily_gross_pnl": round(cumulative_gross_profit - (records[-1]['market_value'] + records[-1]['daily_gross_pnl'] if records else initial_cash), 2),
         "trade_count": trade_count,
-        "daily_commission_cost": round(commission, 4),
-        "daily_trading_cost": round(trading_cost_today, 4),
+        "daily_trading_cost": round(commission, 4),
         "daily_llm_input_tokens": input_tokens,
         "daily_llm_output_tokens": output_tokens,
         "daily_llm_cost_usd": round(llm_cost, 6),
