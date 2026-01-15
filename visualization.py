@@ -252,15 +252,61 @@ def create_time_series_stacked_chart(df: pd.DataFrame, csv_path: str = None, out
         output_path: Path to save the output image (if None, will be auto-generated)
     """
     # Load LLM outputs data to get price and cash information over time
+    # #region agent log
+    try:
+        with open("/Users/nicolewang/Documents/research/FinCost-Demo-1/.cursor/debug.log", "a") as f:
+            f.write(f'{{"sessionId":"debug-session","runId":"pre-fix","hypothesisId":"H1","location":"visualization.py:create_time_series_stacked_chart","message":"entry","data":{{"df_cols":{list(df.columns)!r},"llm_csv_path":{csv_path!r}}},"timestamp":{int(pd.Timestamp.now().timestamp()*1000)}}}\n')
+    except Exception:
+        pass
+    # #endregion agent log
     llm_df = load_llm_outputs_data(csv_path)
+    # #region agent log
+    try:
+        with open("/Users/nicolewang/Documents/research/FinCost-Demo-1/.cursor/debug.log", "a") as f:
+            f.write(f'{{"sessionId":"debug-session","runId":"pre-fix","hypothesisId":"H1","location":"visualization.py:create_time_series_stacked_chart","message":"llm_df_loaded","data":{{"llm_df_is_none":{llm_df is None},"llm_df_cols":{list(llm_df.columns) if llm_df is not None else None!r}}},"timestamp":{int(pd.Timestamp.now().timestamp()*1000)}}}\n')
+    except Exception:
+        pass
+    # #endregion agent log
     
     # Calculate holdings value and cash for each date
     if llm_df is not None and len(llm_df) > 0:
         # Merge dataframes on date index, using 'left' join to keep only df's index
-        merged_df = df.join(llm_df[['current_price', 'available_cash']], how='left')
+        # #region agent log
+        try:
+            with open("/Users/nicolewang/Documents/research/FinCost-Demo-1/.cursor/debug.log", "a") as f:
+                f.write(f'{{"sessionId":"debug-session","runId":"pre-fix","hypothesisId":"H2","location":"visualization.py:create_time_series_stacked_chart","message":"before_join","data":{{"df_has_available_cash":{("available_cash" in df.columns)},"llm_has_available_cash":{("available_cash" in llm_df.columns)},"df_cols":{list(df.columns)!r},"llm_cols":{list(llm_df.columns)!r}}},"timestamp":{int(pd.Timestamp.now().timestamp()*1000)}}}\n')
+        except Exception:
+            pass
+        # #endregion agent log
+        if 'available_cash' in df.columns:
+            join_cols = ['current_price']
+        else:
+            join_cols = ['current_price', 'available_cash']
+        # #region agent log
+        try:
+            with open("/Users/nicolewang/Documents/research/FinCost-Demo-1/.cursor/debug.log", "a") as f:
+                f.write(f'{{"sessionId":"debug-session","runId":"pre-fix","hypothesisId":"H1","location":"visualization.py:create_time_series_stacked_chart","message":"join_cols_selected","data":{{"join_cols":{join_cols!r}}},"timestamp":{int(pd.Timestamp.now().timestamp()*1000)}}}\n')
+        except Exception:
+            pass
+        # #endregion agent log
+        merged_df = df.join(llm_df[join_cols], how='left')
+        # #region agent log
+        try:
+            with open("/Users/nicolewang/Documents/research/FinCost-Demo-1/.cursor/debug.log", "a") as f:
+                f.write(f'{{"sessionId":"debug-session","runId":"pre-fix","hypothesisId":"H2","location":"visualization.py:create_time_series_stacked_chart","message":"after_join","data":{{"merged_cols":{list(merged_df.columns)!r}}},"timestamp":{int(pd.Timestamp.now().timestamp()*1000)}}}\n')
+        except Exception:
+            pass
+        # #endregion agent log
         # Forward fill missing values
         merged_df['current_price'] = merged_df['current_price'].ffill()
         merged_df['available_cash'] = merged_df['available_cash'].ffill()
+        # #region agent log
+        try:
+            with open("/Users/nicolewang/Documents/research/FinCost-Demo-1/.cursor/debug.log", "a") as f:
+                f.write(f'{{"sessionId":"debug-session","runId":"pre-fix","hypothesisId":"H3","location":"visualization.py:create_time_series_stacked_chart","message":"after_ffill","data":{{"current_price_nan":{merged_df["current_price"].isna().sum()},"available_cash_nan":{merged_df["available_cash"].isna().sum()}}},"timestamp":{int(pd.Timestamp.now().timestamp()*1000)}}}\n')
+        except Exception:
+            pass
+        # #endregion agent log
         
         # Calculate holdings value for each date, using df.index explicitly
         # Use df.index to ensure we only get values for dates in df
@@ -419,72 +465,14 @@ def visualize_backtest_results(df: pd.DataFrame, csv_path: str = None, output_pa
         output_path_obj = Path(output_path)
         output_path_obj.parent.mkdir(parents=True, exist_ok=True)
     
-    fig, axes = plt.subplots(4, 1, figsize=(14, 20))
+    # Only keep the original 3rd and 4th subplots in the first figure
+    fig, axes = plt.subplots(2, 1, figsize=(14, 14))
     
-    # First subplot: Total capital and cumulative cost
-    ax1 = axes[0]
-    
-    # Plot total capital (cash + holdings)
-    ax1.plot(df.index, df['market_value'], 
-             label='Total Capital (Cash + Holdings)', 
-             linewidth=2, 
-             color='#2E86AB')
-    
-    # Plot cumulative cost
-    ax1.plot(df.index, df['cumulative_cost'], 
-             label='Cumulative Cost', 
-             linewidth=2, 
-             color='#A23B72',
-             linestyle='--')
-    
-    ax1.set_xlabel('Date', fontsize=12)
-    ax1.set_ylabel('Amount (USD)', fontsize=12)
-    ax1.set_title('Total Capital and Cumulative Cost Over Time', fontsize=14, fontweight='bold')
-    ax1.legend(loc='best', fontsize=10)
-    ax1.grid(True, alpha=0.3)
-    ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-    ax1.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
-    plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45, ha='right')
-    
-    # Format y-axis as currency
-    ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
-    
-    # Second subplot: Total assets (total capital - cumulative cost) and cumulative net profit
-    ax2 = axes[1]
-    
-    # Calculate total assets (total capital - cumulative cost)
+    # Calculate total assets (total capital - cumulative cost) for statistics (even if not plotted)
     total_assets = df['market_value'] - df['cumulative_cost']
     
-    # Plot total assets
-    ax2.plot(df.index, total_assets, 
-             label='Total Assets (Capital - Cost)', 
-             linewidth=2, 
-             color='#06A77D')
-    
-    # Plot cumulative net profit (for comparison)
-    ax2.plot(df.index, df['cumulative_net_profit'], 
-             label='Cumulative Net Profit', 
-             linewidth=2, 
-             color='#F18F01',
-             linestyle=':')
-    
-    # Add zero line
-    ax2.axhline(y=0, color='gray', linestyle='-', linewidth=1, alpha=0.5)
-    
-    ax2.set_xlabel('Date', fontsize=12)
-    ax2.set_ylabel('Amount (USD)', fontsize=12)
-    ax2.set_title('Total Assets and Cumulative Net Profit Over Time', fontsize=14, fontweight='bold')
-    ax2.legend(loc='best', fontsize=10)
-    ax2.grid(True, alpha=0.3)
-    ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-    ax2.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
-    plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right')
-    
-    # Format y-axis as currency
-    ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
-    
-    # Third subplot: Cumulative cost, cumulative net profit, and gross profit
-    ax3 = axes[2]
+    # First subplot in this figure: Cumulative cost, cumulative net profit, and gross profit
+    ax3 = axes[0]
     
     # Calculate initial cash (from first day's market value, as it should equal initial cash)
     initial_cash = df['market_value'].iloc[0]
@@ -528,21 +516,30 @@ def visualize_backtest_results(df: pd.DataFrame, csv_path: str = None, output_pa
     # Format y-axis as currency
     ax3.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
     
-    # Fourth subplot: Cumulative cost components over time
-    ax4 = axes[3]
+    # Second subplot in this figure: Cumulative cost components over time
+    ax4 = axes[1]
     
-    # Verify required columns exist
-    required_cost_columns = ['daily_trading_cost', 'daily_llm_cost_usd', 'daily_infra_cost', 
+    # Determine trading cost series (support both old 'daily_trading_cost' and new commission + slippage)
+    if 'daily_trading_cost' in df.columns:
+        daily_trading_cost_series = df['daily_trading_cost']
+    elif 'daily_commission_cost' in df.columns and 'slippage_usd' in df.columns:
+        daily_trading_cost_series = df['daily_commission_cost'] + df['slippage_usd']
+    else:
+        daily_trading_cost_series = pd.Series(0, index=df.index)
+        print("[Warning] Trading cost columns not found. Using zeros for trading cost.")
+    
+    # Verify required columns exist (excluding trading cost which we can synthesize)
+    required_cost_columns = ['daily_llm_cost_usd', 'daily_infra_cost', 
                              'daily_random_cost', 'monthly_data_subscription_cost']
     missing_columns = [col for col in required_cost_columns if col not in df.columns]
     if missing_columns:
-        print(f"[Warning] Missing cost columns: {missing_columns}. Skipping cost breakdown chart.")
+        print(f"[Warning] Missing cost columns: {missing_columns}. Skipping cost breakdown chart in main figure.")
         ax4.text(0.5, 0.5, f'Missing columns: {missing_columns}', 
                 transform=ax4.transAxes, ha='center', va='center', fontsize=12)
         ax4.set_title('Cumulative Cost Components Over Time (Data Unavailable)', fontsize=14, fontweight='bold')
     else:
         # Calculate cumulative costs for each component
-        cumulative_trading_cost = df['daily_trading_cost'].cumsum()
+        cumulative_trading_cost = daily_trading_cost_series.cumsum()
         cumulative_llm_cost = df['daily_llm_cost_usd'].cumsum()
         cumulative_infra_cost = df['daily_infra_cost'].cumsum()
         cumulative_random_cost = df['daily_random_cost'].cumsum()
@@ -638,16 +635,24 @@ def create_daily_costs_time_series_chart(df: pd.DataFrame, csv_path: str = None,
         csv_path: Path to the CSV file (used to extract metadata for filename)
         output_path: Path to save the output image (if None, will be auto-generated)
     """
-    # Verify required columns exist
-    required_cost_columns = ['daily_trading_cost', 'daily_llm_cost_usd', 'daily_infra_cost', 
-                             'daily_random_cost']
+    # Determine trading cost series (support both old 'daily_trading_cost' and new commission + slippage)
+    if 'daily_trading_cost' in df.columns:
+        daily_trading_cost_series = df['daily_trading_cost']
+    elif 'daily_commission_cost' in df.columns and 'slippage_usd' in df.columns:
+        daily_trading_cost_series = df['daily_commission_cost'] + df['slippage_usd']
+    else:
+        daily_trading_cost_series = pd.Series(0, index=df.index)
+        print("[Warning] Trading cost columns not found. Using zeros for trading cost in daily costs chart.")
+    
+    # Verify required non-trading cost columns exist
+    required_cost_columns = ['daily_llm_cost_usd', 'daily_infra_cost', 'daily_random_cost']
     missing_columns = [col for col in required_cost_columns if col not in df.columns]
     if missing_columns:
         print(f"[Warning] Missing cost columns: {missing_columns}. Skipping daily costs time series chart.")
         return
     
     # Calculate cumulative costs for each daily component (excluding monthly subscription)
-    cumulative_trading_cost = df['daily_trading_cost'].cumsum()
+    cumulative_trading_cost = daily_trading_cost_series.cumsum()
     cumulative_llm_cost = df['daily_llm_cost_usd'].cumsum()
     cumulative_infra_cost = df['daily_infra_cost'].cumsum()
     cumulative_random_cost = df['daily_random_cost'].cumsum()
@@ -742,15 +747,24 @@ def create_daily_costs_time_series_chart(df: pd.DataFrame, csv_path: str = None,
 
 def create_cost_breakdown_chart(df: pd.DataFrame, csv_path: str = None, output_path: str = None):
     """
-    Create a visualization showing the breakdown of cumulative costs by component
+    Create a bar chart showing the breakdown of cumulative cost proportions by component
     
     Args:
         df: DataFrame containing backtest data
         csv_path: Path to the CSV file (used to extract metadata for filename)
         output_path: Path to save the output image (if None, will be auto-generated)
     """
+    # Determine trading cost series (support both old 'daily_trading_cost' and new commission + slippage)
+    if 'daily_trading_cost' in df.columns:
+        daily_trading_cost_series = df['daily_trading_cost']
+    elif 'daily_commission_cost' in df.columns and 'slippage_usd' in df.columns:
+        daily_trading_cost_series = df['daily_commission_cost'] + df['slippage_usd']
+    else:
+        daily_trading_cost_series = pd.Series(0, index=df.index)
+        print("[Warning] Trading cost columns not found. Using zeros for trading cost in breakdown chart.")
+    
     # Calculate cumulative costs for each component
-    cumulative_trading_cost = df['daily_trading_cost'].cumsum()
+    cumulative_trading_cost = daily_trading_cost_series.cumsum()
     cumulative_llm_cost = df['daily_llm_cost_usd'].cumsum()
     cumulative_infra_cost = df['daily_infra_cost'].cumsum()
     cumulative_random_cost = df['daily_random_cost'].cumsum()
@@ -763,7 +777,7 @@ def create_cost_breakdown_chart(df: pd.DataFrame, csv_path: str = None, output_p
     final_random_cost = cumulative_random_cost.iloc[-1]
     final_subscription_cost = cumulative_subscription_cost.iloc[-1]
     
-    # Generate output path for cost breakdown chart
+    # Generate output path for cost breakdown bar chart
     if output_path:
         output_path_obj = Path(output_path)
         cost_breakdown_path = output_path_obj.parent / (output_path_obj.stem + "_cost_breakdown.png")
@@ -782,11 +796,9 @@ def create_cost_breakdown_chart(df: pd.DataFrame, csv_path: str = None, output_p
         else:
             cost_breakdown_path = fig_dir / "backtest_cost_breakdown.png"
     
-    # Create figure with two subplots: Stacked Bar Chart and Pie Chart
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    # Create bar chart for cost proportions
+    fig, ax1 = plt.subplots(1, 1, figsize=(10, 6))
     
-    # Stacked Bar Chart
-    categories = ['Cost Breakdown']
     cost_components = [
         final_trading_cost,
         final_llm_cost,
@@ -803,70 +815,28 @@ def create_cost_breakdown_chart(df: pd.DataFrame, csv_path: str = None, output_p
     ]
     colors = ['#A23B72', '#2E86AB', '#06A77D', '#F18F01', '#6C5CE7']
     
-    # Calculate bottom positions for stacking
-    bottoms = [0]
-    for i in range(len(cost_components) - 1):
-        bottoms.append(bottoms[-1] + cost_components[i])
-    
-    # Create stacked bar
-    for i, (cost, label, color, bottom) in enumerate(zip(cost_components, cost_labels, colors, bottoms)):
-        if cost > 0:
-            ax1.bar(categories, [cost], bottom=[bottom], label=label, color=color, alpha=0.8)
-    
-    ax1.set_ylabel('Cumulative Cost (USD)', fontsize=12)
-    ax1.set_title('Final Cost Breakdown by Component', fontsize=14, fontweight='bold')
-    ax1.legend(loc='upper right', fontsize=10)
-    ax1.grid(True, alpha=0.3, axis='y')
-    ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
-    
-    # Add value labels on bars
     total_cost = sum(cost_components)
-    current_bottom = 0
-    for i, (cost, label) in enumerate(zip(cost_components, cost_labels)):
-        if cost > 0:
-            ax1.text(0, current_bottom + cost / 2, f'${cost:,.0f}', 
-                    ha='center', va='center', fontsize=9, fontweight='bold', color='white')
-            current_bottom += cost
-    ax1.text(0, total_cost + total_cost * 0.02, f'Total: ${total_cost:,.0f}', 
-            ha='center', va='bottom', fontsize=11, fontweight='bold')
-    
-    # Pie Chart
-    # Only include non-zero components
-    sizes = []
-    labels_pie = []
-    colors_pie = []
-    explode_list = []
-    
-    for cost, label, color in zip(cost_components, cost_labels, colors):
-        if cost > 0:
-            sizes.append(cost)
-            labels_pie.append(label)
-            colors_pie.append(color)
-            explode_list.append(0.05)
-    
-    if len(sizes) > 0 and sum(sizes) > 0:
-        # Calculate percentages
-        total = sum(sizes)
-        labels_with_pct = []
-        for cost, label in zip(sizes, labels_pie):
-            pct = (cost / total) * 100
-            labels_with_pct.append(f'{label}\n${cost:,.0f}\n({pct:.1f}%)')
-        
-        explode_tuple = tuple(explode_list)
-        
-        wedges, texts, autotexts = ax2.pie(sizes, labels=labels_with_pct, colors=colors_pie, 
-                                           explode=explode_tuple, autopct='', startangle=90, 
-                                           textprops={'fontsize': 9})
-        
-        # Make percentage text bold
-        for autotext in autotexts:
-            autotext.set_color('white')
-            autotext.set_fontweight('bold')
-        
-        ax2.set_title('Cost Breakdown Distribution', fontsize=14, fontweight='bold')
+    if total_cost <= 0:
+        ax1.text(0.5, 0.5, 'No cost data available', ha='center', va='center', fontsize=12)
+        ax1.set_title('Cost Breakdown Proportions', fontsize=14, fontweight='bold')
     else:
-        ax2.text(0.5, 0.5, 'No cost data available', ha='center', va='center', fontsize=12)
-        ax2.set_title('Cost Breakdown Distribution', fontsize=14, fontweight='bold')
+        # Compute percentages
+        percentages = [(c / total_cost) * 100 for c in cost_components]
+        x = np.arange(len(cost_labels))
+        
+        bars = ax1.bar(x, percentages, color=colors, alpha=0.8)
+        ax1.set_xticks(x)
+        ax1.set_xticklabels(cost_labels, rotation=30, ha='right')
+        ax1.set_ylabel('Percentage of Total Cost (%)', fontsize=12)
+        ax1.set_title('Final Cost Breakdown Proportions by Component', fontsize=14, fontweight='bold')
+        ax1.grid(True, alpha=0.3, axis='y')
+        
+        # Add value labels on bars
+        for bar, pct, cost in zip(bars, percentages, cost_components):
+            height = bar.get_height()
+            ax1.text(bar.get_x() + bar.get_width() / 2, height + 1,
+                     f'{pct:.1f}%\n${cost:,.0f}',
+                     ha='center', va='bottom', fontsize=9, fontweight='bold')
     
     plt.tight_layout()
     cost_breakdown_path_str = str(cost_breakdown_path) if isinstance(cost_breakdown_path, Path) else cost_breakdown_path
@@ -895,8 +865,17 @@ def create_final_cost_pie_chart(df: pd.DataFrame, csv_path: str = None, output_p
         csv_path: Path to the CSV file (used to extract metadata for filename)
         output_path: Path to save the output image (if None, will be auto-generated)
     """
+    # Determine trading cost series (support both old 'daily_trading_cost' and new commission + slippage)
+    if 'daily_trading_cost' in df.columns:
+        daily_trading_cost_series = df['daily_trading_cost']
+    elif 'daily_commission_cost' in df.columns and 'slippage_usd' in df.columns:
+        daily_trading_cost_series = df['daily_commission_cost'] + df['slippage_usd']
+    else:
+        daily_trading_cost_series = pd.Series(0, index=df.index)
+        print("[Warning] Trading cost columns not found. Using zeros for trading cost in final cost pie chart.")
+    
     # Calculate cumulative costs for each component
-    cumulative_trading_cost = df['daily_trading_cost'].cumsum()
+    cumulative_trading_cost = daily_trading_cost_series.cumsum()
     cumulative_llm_cost = df['daily_llm_cost_usd'].cumsum()
     cumulative_infra_cost = df['daily_infra_cost'].cumsum()
     cumulative_random_cost = df['daily_random_cost'].cumsum()
