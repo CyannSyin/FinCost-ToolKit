@@ -1,0 +1,21 @@
+# FinCost Demo - 依赖包列表
+# 安装方法: pip install -r requirements.txt
+
+# 数据处理
+pandas>=2.0.0
+datasets>=2.14.0
+
+# LangChain 核心库
+# 注意: 不同版本的 LangChain 可能有不同的导入路径
+# 如果遇到导入错误，请尝试: pip install --upgrade langchain langchain-core langchain-openai langchain-community
+# 推荐使用较新的版本（0.1.0+）以确保 create_agent 和 AgentExecutor 可用
+langchain>=0.1.0
+langchain-core>=0.1.0
+langchain-openai>=0.0.5
+langchain-community>=0.0.20
+
+# 环境变量管理
+python-dotenv>=1.0.0
+
+# 可视化
+matplotlib>=3.7.0
