@@ -3,7 +3,7 @@
   "llm_model": "gpt-5-mini",
   "llm_base_url": "https://vip.yi-zhan.top/v1",
   "start_date": "2025-06-01",
-  "end_date": "2025-8-31",
+  "end_date": "2025-06-15",
   "initial_cash": 100000.0,
   "commission_type": "fixed",
   "commission_per_share": 0.005,

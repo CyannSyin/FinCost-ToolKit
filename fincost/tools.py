@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
-from langchain_core.tools import tool
+from langchain.tools import tool
 
 
 def build_tools(df: pd.DataFrame):

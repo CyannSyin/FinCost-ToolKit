@@ -12,6 +12,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from .config import Settings
 from .indicators import technical_agent
+from .util.alpha_vantage import AlphaVantageWrapper
 
 
 def calculate_commission(
@@ -56,6 +57,7 @@ def run_backtest(
 
     records = []
     llm_outputs_records = []
+    av_wrapper = AlphaVantageWrapper()
 
     cash = initial_cash
     shares = 0
@@ -84,6 +86,7 @@ def run_backtest(
 
         history_prices = df.iloc[max(0, i - 9) : i + 1]["prices"].tolist()
         signal_results = technical_agent(full_df, date_str)
+        daily_news = av_wrapper.get_global_news(date_str)
 
         try:
             if "news" not in df.columns:
@@ -251,6 +254,9 @@ Today's News ({date_str}):
 
 Recent News Summary (Last 3 days):
 {recent_news_summary}
+
+=== GLOBAL DAILY NEWS ===
+{daily_news}
 
 === INSTRUCTIONS ===
 Please analyze BOTH the price data AND the news information provided above. You MUST consider how the news affects market sentiment and stock price movements. Based on your comprehensive analysis of price trends and news content, provide your investment decision in the format: buy <number>, sell <number>, or hold:"""
