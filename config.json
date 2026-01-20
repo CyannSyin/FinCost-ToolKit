@@ -1,9 +1,15 @@
 {
   "llm_provider": "aihubmix",
   "llm_model": "gpt-5-mini",
+<<<<<<< HEAD
   "llm_base_url": "https://api.aihubmix.com/v1",
   "start_date": "2025-06-01",
   "end_date": "2025-8-31",
+=======
+  "llm_base_url": "https://vip.yi-zhan.top/v1",
+  "start_date": "2025-06-01",
+  "end_date": "2025-06-15",
+>>>>>>> tiger
   "initial_cash": 100000.0,
   "commission_type": "fixed",
   "commission_per_share": 0.005,
