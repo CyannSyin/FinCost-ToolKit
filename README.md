@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# FinCost-Demo
-=======
 # FinCost-Demo
 
 TSLA backtest demo with LLM-driven trading decisions.
@@ -25,4 +22,4 @@ TSLA backtest demo with LLM-driven trading decisions.
 - The legacy monolithic script remains in `demo.py`.
 - Outputs are saved to `result/` as CSV files.
 - Visualization still runs from `visualization.py` (point it to a CSV file).
->>>>>>> tiger
+
