@@ -1,19 +1,4 @@
 {
-  "llm_provider": "aihubmix",
-  "llm_model": "gpt-5-mini",
-  "llm_base_url": "https://api.aihubmix.com/v1",
-  "start_date": "2025-06-01",
-  "end_date": "2025-8-31",
-  "initial_cash": 100000.0,
-  "commission_type": "fixed",
-  "commission_per_share": 0.005,
-  "commission_minimum": 1.0,
-  "commission_maximum_rate": 0.01,
-  "infra_daily": 0.5,
-  "random_cost_min": 0.0,
-  "random_cost_max": 1.0,
-  "input_price_per_k_tokens": 0.00000025,
-  "output_price_per_k_tokens": 0.000002,
-  "data_subscription_monthly": 100.0
+  "records_path": "/Users/nicolewang/Documents/research/FinCost-Demo-1/data/experiment_records_gpt-4o-mini_10000.0_2026-01-06-14-00-00_2026-01-07-14-00-00.jsonl",
+  "static_path": "/Users/nicolewang/Documents/research/FinCost-Demo-1/data/static_gpt-4o-mini_10000.jsonl"
 }
-

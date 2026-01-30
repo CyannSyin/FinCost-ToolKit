@@ -1,1 +1,1 @@
-"""FinCost demo package."""
+"""FinCost calculator package."""

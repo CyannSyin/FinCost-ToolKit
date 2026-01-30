@@ -1,0 +1,36 @@
+{
+  "currency": "USD",
+  "unit": "per_1k_tokens",
+  "models": {
+    "gpt-5.2": {
+      "input_price_per_k_tokens": 0.00175,
+      "output_price_per_k_tokens": 0.014,
+      "cache_price_per_k_tokens": 0.000175
+    },
+    "gemini-2.5-pro": {
+      "input_price_per_k_tokens": 0.00125,
+      "output_price_per_k_tokens": 0.015,
+      "cache_price_per_k_tokens": 0.000125
+    },
+    "qwen3-max-2026-01-23": {
+      "input_price_per_k_tokens": 0.00034,
+      "output_price_per_k_tokens": 0.00137,
+      "cache_price_per_k_tokens": 0
+    },
+    "DeepSeek-V3": {
+      "input_price_per_k_tokens": 0.000272,
+      "output_price_per_k_tokens": 0.001088,
+      "cache_price_per_k_tokens": 0
+    },
+    "o1-mini": {
+      "input_price_per_k_tokens": 0.000003,
+      "output_price_per_k_tokens": 0.000009,
+      "cache_price_per_k_tokens": 0.0000001
+    },
+    "claude-3-7-sonnet": {
+      "input_price_per_k_tokens": 0.0033,
+      "output_price_per_k_tokens": 0.0165,
+      "cache_price_per_k_tokens": 0
+    }
+  }
+}
