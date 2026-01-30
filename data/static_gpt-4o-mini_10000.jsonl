@@ -1,0 +1,13 @@
+{
+  "structure": {
+    "llm_model": "gpt-5-mini",
+    "decision_frequency": "daily",
+    "start_time": "2025-09-03",
+    "end_time": "2025-09-04",
+    "initial_cash": 10000,
+    "agent_config": {
+      "agent_count": 1
+    }
+  },
+  "data_subscription_monthly": 100.0
+}
