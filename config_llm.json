@@ -31,6 +31,16 @@
       "input_price_per_k_tokens": 0.0033,
       "output_price_per_k_tokens": 0.0165,
       "cache_price_per_k_tokens": 0
+    },
+    "gemini-3-pro-preview": {
+      "input_price_per_k_tokens": 0.002,
+      "output_price_per_k_tokens": 0.012,
+      "cache_price_per_k_tokens": 0
+    },
+    "claude-sonnet-4-5": {
+      "input_price_per_k_tokens": 0.0033,
+      "output_price_per_k_tokens": 0.0165,
+      "cache_price_per_k_tokens": 0
     }
   }
 }

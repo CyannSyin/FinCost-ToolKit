@@ -1,7 +1,7 @@
 {
   "structure": {
     "llm_model": "gpt-5-mini",
-    "decision_frequency": "daily",
+    "decision_frequency": "hourly",
     "start_time": "2025-09-03",
     "end_time": "2025-09-04",
     "initial_cash": 10000,
