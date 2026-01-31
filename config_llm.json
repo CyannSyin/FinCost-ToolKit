@@ -41,6 +41,11 @@
       "input_price_per_k_tokens": 0.0033,
       "output_price_per_k_tokens": 0.0165,
       "cache_price_per_k_tokens": 0
+    },
+    "glm-4.7":{
+      "input_price_per_k_tokens": 0.00027,
+      "output_price_per_k_tokens": 0.0011,
+      "cache_price_per_k_tokens": 0.0000547948
     }
   }
 }
