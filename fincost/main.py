@@ -4,14 +4,23 @@ import random
 from .analysis import (
     calculate_cumulative_cost_series,
     calculate_monthly_cost_series,
+    calculate_portfolio_state,
     calculate_portfolio_series,
     calculate_token_cost_by_date,
+    calculate_opportunity_cost_and_latency,
 )
 from .commission import extract_actions_and_commission
 from .config import get_project_root, load_app_config, load_llm_pricing, load_static_config
 from .plots import plot_cost_pie, plot_performance_lines
-from .records import load_experiment_records
-from .report import build_report_payload, build_report_text, save_report_jsonl, save_report_text
+from .records import load_experiment_records, load_daily_buy_prices
+from .report import (
+    build_report_payload,
+    build_report_text,
+    build_summary_bill_markdown,
+    save_report_jsonl,
+    save_report_markdown,
+    save_report_text,
+)
 
 
 def main():
@@ -30,8 +39,10 @@ def main():
         "static_path",
         os.path.join(data_dir, "static_gpt-4o-mini_10000.jsonl"),
     )
+    prices_path = app_config.get("prices_path", os.path.join(data_dir, "merged.jsonl"))
 
     records = load_experiment_records(records_path)
+    prices_by_date = load_daily_buy_prices(prices_path)
     model_pricing = load_llm_pricing(os.path.join(root, "config_llm.json"))
     static_config = load_static_config(static_path)
 
@@ -44,7 +55,7 @@ def main():
 
     monthly_cost = float(static_config.get("data_subscription_monthly", 0.0))
     monthly_additions, monthly_total = calculate_monthly_cost_series(records, monthly_cost)
-    uncertain_cost = random.uniform(0.0, 0.5)
+    uncertain_cost = sum(random.uniform(0.0, 0.5) for _ in range(trading_days))
     infra_total = trading_days * infra_cost_per_day
     total_cost = commission_total + token_total + infra_total + monthly_total + uncertain_cost
 
@@ -68,6 +79,28 @@ def main():
     os.makedirs(result_dir, exist_ok=True)
 
     save_report_text(report_text, result_dir, llm_model, initial_cash, frequency)
+    portfolio_state = calculate_portfolio_state(records, initial_cash, prices_by_date)
+    opportunity_cost, average_latency_ms, trade_count = calculate_opportunity_cost_and_latency(
+        records
+    )
+    bill_markdown = build_summary_bill_markdown(
+        records,
+        static_config,
+        llm_model,
+        initial_cash,
+        frequency,
+        commission_total,
+        token_total,
+        infra_total,
+        monthly_total,
+        uncertain_cost,
+        total_cost,
+        portfolio_state,
+        opportunity_cost,
+        average_latency_ms,
+        trade_count,
+    )
+    save_report_markdown(bill_markdown, result_dir, llm_model, initial_cash, frequency)
     report_payload = build_report_payload(
         llm_model,
         initial_cash,
@@ -102,7 +135,9 @@ def main():
         include_monthly=False,
     )
 
-    dates, holding_profit_series = calculate_portfolio_series(records, initial_cash)
+    dates, holding_profit_series = calculate_portfolio_series(
+        records, initial_cash, prices_by_date
+    )
     uncertain_additions = [uncertain_cost] + [0.0 for _ in records[1:]]
     combined_additions = [
         monthly_additions[i] + uncertain_additions[i] for i in range(len(monthly_additions))

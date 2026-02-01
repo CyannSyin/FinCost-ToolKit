@@ -340,7 +340,7 @@ def main():
     infra_cost_per_day = 0.2
 
     monthly_cost = float(static_config.get("data_subscription_monthly", 0.0))
-    uncertain_cost = random.uniform(0.0, 0.5)
+    uncertain_cost = sum(random.uniform(0.0, 0.5) for _ in range(trading_days))
     monthly_additions, monthly_total = calculate_monthly_cost_series(records, monthly_cost)
     infra_total = trading_days * infra_cost_per_day
     total_cost = commission_total + token_total + infra_total + monthly_total + uncertain_cost

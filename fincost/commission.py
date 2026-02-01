@@ -6,14 +6,17 @@ COMMISSION_MINIMUM = 1.0
 COMMISSION_MAXIMUM_RATE = 0.01
 
 
-def calculate_commission(shares: int, trade_value: float) -> float:
-    if shares == 0 or trade_value == 0:
+def calculate_commission(shares: int, trade_value: float | None) -> float:
+    if shares <= 0:
         return 0.0
     base_commission = shares * COMMISSION_PER_SHARE
     commission = max(base_commission, COMMISSION_MINIMUM)
+    if trade_value is None:
+        return commission
+    if trade_value <= 0:
+        return 0.0
     max_commission = trade_value * COMMISSION_MAXIMUM_RATE
-    commission = min(commission, max_commission)
-    return commission
+    return min(commission, max_commission)
 
 
 def extract_actions_and_commission(records):
@@ -27,17 +30,17 @@ def extract_actions_and_commission(records):
         actions = []
 
         for trade in trades:
-            decision_type = trade.get("decision_type", "UNKNOWN")
+            decision_type = str(trade.get("decision_type", "UNKNOWN")).upper()
             actions.append(decision_type)
+
+            if decision_type not in {"BUY", "SELL"}:
+                continue
 
             quantity = int(trade.get("quantity") or 0)
             price = trade.get("execution_price")
             if price is None:
                 price = trade.get("analysis_price")
-            if price is None:
-                trade_value = 0.0
-            else:
-                trade_value = float(price) * quantity
+            trade_value = None if price is None else float(price) * quantity
 
             trade_commission = calculate_commission(quantity, trade_value)
             commission_by_date[date] += trade_commission
