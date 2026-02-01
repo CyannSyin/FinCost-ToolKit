@@ -288,7 +288,7 @@ def plot_performance_lines(dates, holding_profit_series, cumulative_cost_series,
     plt.plot(
         dates,
         holding_profit_series,
-        label="Holding Profit (holdings + cash - initial cash)",
+        label="Portfolio Value - Initial Cash (cash + holdings - initial cash)",
         color="#88a4c9",
     )
     plt.plot(
