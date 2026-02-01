@@ -1,4 +1,4 @@
 {
-  "records_path": "/Users/nicolewang/Documents/research/FinCost-Demo-1/data/experiment_records_gpt-4o-mini_10000.0_2026-01-06-14-00-00_2026-01-07-14-00-00.jsonl",
-  "static_path": "/Users/nicolewang/Documents/research/FinCost-Demo-1/data/static_gpt-4o-mini_10000.jsonl"
+  "records_path": "/Users/nicolewang/Documents/research/FinCost-Demo-1/data/exp-3/experiment_records_gpt-5.2_10000.0_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl",
+  "static_path": "/Users/nicolewang/Documents/research/FinCost-Demo-1/data/exp-3/static-gpt-5.2_10000.0_hourly_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl"
 }

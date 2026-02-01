@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import datetime
 
 
 def calculate_token_cost_by_date(records, model_pricing):
@@ -35,12 +36,14 @@ def calculate_token_cost_by_date(records, model_pricing):
     return token_usage_by_date, token_cost_by_date
 
 
-def calculate_portfolio_series(records, initial_cash):
+def calculate_portfolio_series(records, initial_cash, prices_by_date=None):
     cash = float(initial_cash)
     holdings = defaultdict(int)
     last_price = {}
     dates = []
     holding_profit_series = []
+    prices_by_date = prices_by_date or {}
+    prev_portfolio_value = None
 
     for record in records:
         date = record.get("date")
@@ -66,14 +69,95 @@ def calculate_portfolio_series(records, initial_cash):
                 cash += price * quantity
                 holdings[ticker] -= quantity
 
-        holdings_value = sum(qty * last_price.get(ticker, 0.0) for ticker, qty in holdings.items())
+        daily_prices = prices_by_date.get(str(date), {})
+        holdings_value = 0.0
+        for ticker, qty in holdings.items():
+            if qty == 0:
+                continue
+            if ticker in daily_prices:
+                last_price[ticker] = daily_prices[ticker]
+            holdings_value += qty * last_price.get(ticker, 0.0)
         portfolio_value = cash + holdings_value
-        holding_profit = portfolio_value - float(initial_cash)
+        if prev_portfolio_value is None:
+            holding_profit = 0.0
+        else:
+            holding_profit = portfolio_value - prev_portfolio_value
+        prev_portfolio_value = portfolio_value
 
         dates.append(date)
         holding_profit_series.append(holding_profit)
 
     return dates, holding_profit_series
+
+
+def calculate_portfolio_state(records, initial_cash, prices_by_date=None):
+    cash = float(initial_cash)
+    holdings = defaultdict(int)
+    last_price = {}
+    traded_assets = set()
+    prices_by_date = prices_by_date or {}
+
+    for record in records:
+        trades = record.get("trades", [])
+        for trade in trades:
+            decision_type = str(trade.get("decision_type") or "").upper()
+            ticker = trade.get("ticker") or ""
+            quantity = int(trade.get("quantity") or 0)
+            price = trade.get("execution_price")
+            if price is None:
+                price = trade.get("analysis_price")
+            if price is None:
+                price = 0.0
+            price = float(price)
+
+            if ticker:
+                traded_assets.add(ticker)
+                last_price[ticker] = price
+
+            if decision_type == "BUY":
+                cash -= price * quantity
+                holdings[ticker] += quantity
+            elif decision_type == "SELL":
+                cash += price * quantity
+                holdings[ticker] -= quantity
+
+    last_record_date = None
+    for record in reversed(records):
+        if record.get("date"):
+            last_record_date = str(record.get("date"))
+            break
+
+    daily_prices = prices_by_date.get(last_record_date, {}) if last_record_date else {}
+
+    positions = []
+    total_position_value = 0.0
+    for ticker, qty in holdings.items():
+        if qty == 0:
+            continue
+        if ticker in daily_prices:
+            last_price[ticker] = daily_prices[ticker]
+        price = last_price.get(ticker, 0.0)
+        value = qty * price
+        total_position_value += value
+        positions.append(
+            {
+                "ticker": ticker,
+                "quantity": qty,
+                "price": price,
+                "value": value,
+            }
+        )
+    positions.sort(key=lambda item: item["ticker"])
+
+    total_portfolio_value = cash + total_position_value
+    return {
+        "current_cash": cash,
+        "positions": positions,
+        "total_position_value": total_position_value,
+        "total_portfolio_value": total_portfolio_value,
+        "return_profit": total_portfolio_value - float(initial_cash),
+        "assets": sorted(traded_assets),
+    }
 
 
 def calculate_monthly_cost_series(records, monthly_cost):
@@ -114,3 +198,50 @@ def calculate_cumulative_cost_series(
         cumulative += daily_cost
         cumulative_series.append(cumulative)
     return cumulative_series
+
+
+def _parse_iso_datetime(value):
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    text = str(value)
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(text)
+    except ValueError:
+        return None
+
+
+def calculate_opportunity_cost_and_latency(records):
+    opportunity_total = 0.0
+    latency_total_ms = 0.0
+    trade_count = 0
+
+    for record in records:
+        for trade in record.get("trades", []):
+            decision_type = str(trade.get("decision_type") or "").upper()
+            ticker = trade.get("ticker") or ""
+            quantity = int(trade.get("quantity") or 0)
+            if decision_type not in {"BUY", "SELL"} or not ticker or quantity <= 0:
+                continue
+
+            analysis_price = trade.get("analysis_price")
+            execution_price = trade.get("execution_price")
+            if analysis_price is not None and execution_price is not None:
+                analysis_value = float(analysis_price)
+                execution_value = float(execution_price)
+                slippage = max(0.0, execution_value - analysis_value)
+                opportunity_total += slippage * quantity
+
+            timestamps = trade.get("timestamp") or {}
+            analysis_time = _parse_iso_datetime(timestamps.get("analysis_time"))
+            decision_time = _parse_iso_datetime(timestamps.get("decision_time"))
+            if analysis_time and decision_time:
+                latency_total_ms += (decision_time - analysis_time).total_seconds() * 1000.0
+
+            trade_count += 1
+
+    average_latency_ms = latency_total_ms / trade_count if trade_count else 0.0
+    return opportunity_total, average_latency_ms, trade_count

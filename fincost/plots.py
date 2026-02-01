@@ -62,7 +62,7 @@ def plot_performance_lines(dates, holding_profit_series, cumulative_cost_series,
         dates,
         real_profit_series,
         label="Real Profit (holding profit - cost)",
-        color="#fde8b2",
+        color="#ff8531",
     )
     plt.axhline(0, color="black", linewidth=2.5, linestyle="--")
     plt.legend()
