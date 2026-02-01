@@ -1,4 +1,4 @@
 {
-  "records_path": "/Users/nicolewang/Documents/research/FinCost-Demo-1/data/exp-3/experiment_records_gpt-5.2_10000.0_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl",
-  "static_path": "/Users/nicolewang/Documents/research/FinCost-Demo-1/data/exp-3/static-gpt-5.2_10000.0_hourly_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl"
+  "records_path": "data/exp-2/experiment_records_gpt-5.2_500000_2025-12-01_2026-01-30.jsonl",
+  "static_path": "data/exp-2/static-gpt-5.2_500000.0_2025-12-01_2026-01-30.jsonl"
 }

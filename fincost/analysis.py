@@ -43,7 +43,6 @@ def calculate_portfolio_series(records, initial_cash, prices_by_date=None):
     dates = []
     holding_profit_series = []
     prices_by_date = prices_by_date or {}
-    prev_portfolio_value = None
 
     for record in records:
         date = record.get("date")
@@ -78,11 +77,7 @@ def calculate_portfolio_series(records, initial_cash, prices_by_date=None):
                 last_price[ticker] = daily_prices[ticker]
             holdings_value += qty * last_price.get(ticker, 0.0)
         portfolio_value = cash + holdings_value
-        if prev_portfolio_value is None:
-            holding_profit = 0.0
-        else:
-            holding_profit = portfolio_value - prev_portfolio_value
-        prev_portfolio_value = portfolio_value
+        holding_profit = portfolio_value - float(initial_cash)
 
         dates.append(date)
         holding_profit_series.append(holding_profit)
