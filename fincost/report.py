@@ -242,3 +242,4 @@ def save_report_markdown(report_markdown, result_dir, llm_model, initial_cash, f
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(report_markdown + "\n")
     print(f"\nSaved bill markdown to: {md_path}")
+    return md_path
