@@ -21,19 +21,63 @@ then outputs summary reports and charts.
 4. Run:
    - `python main.py`
 
+## Quick Start (pip)
+
+1. Create and activate a virtual environment:
+   - `python -m venv .venv`
+   - `source .venv/bin/activate`
+2. Install dependencies:
+   - `pip install -r requirements.txt`
+3. Configure inputs:
+   - `config.json` points to the experiment records and static config
+   - `config_llm.json` contains per-model token pricing
+4. Run:
+   - `python main.py`
+
 ## Inputs
 
 - `config.json`
   - `records_path`: JSONL experiment records
   - `static_path`: JSON-like static config (relaxed JSON allowed)
+  - `prices_path`: daily price JSONL (used for portfolio valuation)
 - `config_llm.json`
   - `unit` must be `per_1k_tokens`
   - `models` pricing with input/output/cache rates
 - `data/*.jsonl`
   - Records include `date`, `model` or `llm_usage.model`, `llm_usage` token fields,
-    and `trades` with `decision_type`, `quantity`, and prices.
+    and `trades` with `decision_type`, `ticker`, `quantity`, and prices.
+  - Optional trade timestamps (`trades[].timestamp.analysis_time` and
+    `trades[].timestamp.decision_time`) enable latency reporting.
   - Static config includes `structure` plus fields like `llm_model`,
-    `initial_cash`, `decision_frequency`, and `data_subscription_monthly`.
+    `initial_cash`, `decision_frequency` (or `frequency`), and
+    `data_subscription_monthly`. Optional: `start_time`, `end_time`,
+    `strategy_id`/`signature`.
+
+## Example Configs
+
+`config.json`:
+```json
+{
+  "records_path": "data/exp-3/experiment_records_gpt-5.2_10000.0_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl",
+  "static_path": "data/exp-3/static-gpt-5.2_10000.0_hourly_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl",
+  "prices_path": "data/merged.jsonl"
+}
+```
+
+`config_llm.json`:
+```json
+{
+  "currency": "USD",
+  "unit": "per_1k_tokens",
+  "models": {
+    "gpt-5.2": {
+      "input_price_per_k_tokens": 0.00175,
+      "output_price_per_k_tokens": 0.014,
+      "cache_price_per_k_tokens": 0.000175
+    }
+  }
+}
+```
 
 ## Outputs
 
@@ -41,6 +85,7 @@ Results are written under `result/<llm_model>-<initial_cash>-<frequency>/`:
 
 - `*.txt` report with action summary and cost totals
 - `*.jsonl` report payload
+- `*-bill.md` summary bill markdown
 - `pie-chart/*.pdf` cost breakdown (with/without monthly)
 - `line chart/*.pdf` performance vs costs (with/without monthly)
 
@@ -49,4 +94,5 @@ Results are written under `result/<llm_model>-<initial_cash>-<frequency>/`:
 - `main.py` at repo root delegates to `FinCost.main`.
 - Infra cost is fixed at `0.2` per trading day.
 - Uncertain cost is randomly sampled in `FinCost.main`.
+ - `calculator.py` is a standalone demo script (legacy; `main.py` is preferred).
 

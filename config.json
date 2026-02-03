@@ -1,4 +1,5 @@
 {
-  "records_path": "data/exp-3/experiment_records_gpt-5.2_10000.0_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl",
-  "static_path": "data/exp-3/static-gpt-5.2_10000.0_hourly_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl"
+  "records_path": "data/KDD/exp-1/experiment_records_claude-sonnet-4-5_100000.0_2025-12-01_2026-01-30.jsonl",
+  "static_path": "data/KDD/exp-1/static-claude-sonnet-4-5-100000.0-daily_2025-12-01_2026-01-30.jsonl",
+  "prices_path": "data/merged.jsonl"
 }
