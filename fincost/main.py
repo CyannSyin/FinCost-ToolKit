@@ -12,6 +12,8 @@ from .analysis import (
 from .commission import extract_actions_and_commission
 from .config import get_project_root, load_app_config, load_llm_pricing, load_static_config
 from .plots import plot_cost_pie, plot_performance_lines
+from .render import render_markdown_to_html
+from .agent import run_diagnosis
 from .records import load_experiment_records, load_daily_buy_prices
 from .report import (
     build_report_payload,
@@ -100,7 +102,14 @@ def main():
         average_latency_ms,
         trade_count,
     )
-    save_report_markdown(bill_markdown, result_dir, llm_model, initial_cash, frequency)
+    bill_markdown_path = save_report_markdown(
+        bill_markdown, result_dir, llm_model, initial_cash, frequency
+    )
+    render_markdown_to_html(bill_markdown_path)
+    try:
+        run_diagnosis(bill_markdown_path, records_path, static_path)
+    except Exception as exc:
+        print(f"\n[Warning] Failed to run diagnosis agent: {exc}")
     report_payload = build_report_payload(
         llm_model,
         initial_cash,
