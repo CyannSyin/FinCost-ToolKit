@@ -7,7 +7,8 @@ from datetime import datetime
 from typing import Any
 
 from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
 from .config import get_project_root, load_app_config, load_static_config
@@ -75,6 +76,106 @@ def _parse_ts(value: str | None) -> datetime | None:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+
+
+def _compute_average_daily_latency(records: list[dict[str, Any]]) -> dict[str, Any]:
+    daily_latency_ms = defaultdict(float)
+    trade_days = set()
+    total_latency_ms = 0.0
+
+    for record in records:
+        date_raw = record.get("date")
+        if not date_raw:
+            continue
+        date_str = str(date_raw)
+        date_part = date_str.split(" ")[0].split("T")[0]
+        llm_usage = record.get("llm_usage") or {}
+        latency_ms = llm_usage.get("latency_ms")
+        if isinstance(latency_ms, (int, float)):
+            daily_latency_ms[date_part] += float(latency_ms)
+            total_latency_ms += float(latency_ms)
+
+        trades = record.get("trades", []) or []
+        if trades:
+            trade_days.add(date_part)
+
+    trade_days_count = len(trade_days)
+    average_daily_latency_ms = total_latency_ms / trade_days_count if trade_days_count else 0.0
+
+    return {
+        "average_daily_latency_ms": average_daily_latency_ms,
+        "daily_latency_ms": dict(sorted(daily_latency_ms.items())),
+        "trade_days_count": trade_days_count,
+        "latency_total_ms": total_latency_ms,
+    }
+
+
+def _compute_average_daily_tokens(records: list[dict[str, Any]]) -> dict[str, Any]:
+    daily_tokens = defaultdict(lambda: {"input_tokens": 0, "output_tokens": 0})
+    trade_days = set()
+    total_input = 0
+    total_output = 0
+
+    for record in records:
+        date_raw = record.get("date")
+        if not date_raw:
+            continue
+        date_str = str(date_raw)
+        date_part = date_str.split(" ")[0].split("T")[0]
+        llm_usage = record.get("llm_usage") or {}
+        input_tokens = int(llm_usage.get("input_tokens") or 0)
+        output_tokens = int(llm_usage.get("output_tokens") or 0)
+        daily_tokens[date_part]["input_tokens"] += input_tokens
+        daily_tokens[date_part]["output_tokens"] += output_tokens
+        total_input += input_tokens
+        total_output += output_tokens
+        trades = record.get("trades", []) or []
+        if trades:
+            trade_days.add(date_part)
+
+    trade_days_count = len(trade_days)
+    average_daily_input_tokens = total_input / trade_days_count if trade_days_count else 0.0
+    average_daily_output_tokens = total_output / trade_days_count if trade_days_count else 0.0
+
+    return {
+        "average_daily_input_tokens": average_daily_input_tokens,
+        "average_daily_output_tokens": average_daily_output_tokens,
+        "daily_tokens": dict(sorted(daily_tokens.items())),
+        "trade_days_count": trade_days_count,
+        "input_tokens_total": total_input,
+        "output_tokens_total": total_output,
+    }
+
+
+@tool("average_daily_trade_latency")
+def average_daily_trade_latency_tool(records_path: str | None = None) -> str:
+    """Compute average daily trade latency from experiment_records JSONL."""
+    root = get_project_root()
+    app_config = load_app_config(os.path.join(root, "config.json"))
+    resolved_path = records_path or app_config.get("records_path")
+    if not resolved_path:
+        raise ValueError("Missing records_path in config.json")
+    if not os.path.isabs(resolved_path):
+        resolved_path = os.path.join(root, resolved_path)
+    records = _load_jsonl(resolved_path)
+    result = _compute_average_daily_latency(records)
+    return json.dumps(result, ensure_ascii=False)
+
+
+@tool("average_daily_tokens")
+def average_daily_tokens_tool(records_path: str | None = None) -> str:
+    """Compute average daily input/output tokens from experiment_records JSONL."""
+    print("Computing average daily tokens...")
+    root = get_project_root()
+    app_config = load_app_config(os.path.join(root, "config.json"))
+    resolved_path = records_path or app_config.get("records_path")
+    if not resolved_path:
+        raise ValueError("Missing records_path in config.json")
+    if not os.path.isabs(resolved_path):
+        resolved_path = os.path.join(root, resolved_path)
+    records = _load_jsonl(resolved_path)
+    result = _compute_average_daily_tokens(records)
+    return json.dumps(result, ensure_ascii=False)
 
 
 def _summarize_records(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -230,11 +331,19 @@ def _default_output_path(md_path: str) -> str:
     return os.path.join(md_dir, filename)
 
 
-def run_diagnosis(md_path: str, records_path: str, static_path: str, output_path: str | None = None) -> str:
+def run_diagnosis(md_path: str, records_path: str | None, static_path: str, output_path: str | None = None) -> str:
     root = get_project_root()
     load_dotenv(os.path.join(root, ".env"))
     app_config = load_app_config(os.path.join(root, "config.json"))
     model = str(app_config.get("agent_model", "gpt-4o-mini"))
+    if not records_path:
+        records_path = app_config.get("records_path")
+    if not records_path:
+        raise ValueError("Missing records_path in config.json")
+    if not os.path.isabs(records_path):
+        records_path = os.path.join(root, records_path)
+    if not os.path.isabs(static_path):
+        static_path = os.path.join(root, static_path)
 
     md_text = _read_text(md_path)
     records = _load_jsonl(records_path)
@@ -251,6 +360,7 @@ def run_diagnosis(md_path: str, records_path: str, static_path: str, output_path
             "2) Explain likely causes with evidence from the data.",
             "3) Provide concrete improvement suggestions (prompting, tools, trading logic, risk controls, latency, cost).",
             "4) List quick wins vs long-term improvements.",
+            "You may call tools `average_daily_trade_latency` and `average_daily_tokens` if needed.",
             "",
             "## Report (markdown excerpt)",
             _truncate(md_text, 6000),
@@ -265,13 +375,24 @@ def run_diagnosis(md_path: str, records_path: str, static_path: str, output_path
         ]
     )
 
-    llm = _resolve_llm(model)
-    response = llm.invoke(
-        [
-            SystemMessage(content="You are a meticulous trading-system performance diagnostician."),
-            HumanMessage(content=prompt),
-        ]
-    )
+    llm = _resolve_llm(model).bind_tools([average_daily_trade_latency_tool, average_daily_tokens_tool])
+    messages = [
+        SystemMessage(content="You are a meticulous trading-system performance diagnostician."),
+        HumanMessage(content=prompt),
+    ]
+    response = llm.invoke(messages)
+    if getattr(response, "tool_calls", None):
+        tool_outputs = []
+        for call in response.tool_calls:
+            tool_name = call.get("name")
+            if tool_name == "average_daily_trade_latency":
+                tool_result = average_daily_trade_latency_tool.invoke(call.get("args") or {})
+                tool_outputs.append(ToolMessage(content=tool_result, tool_call_id=call.get("id")))
+            elif tool_name == "average_daily_tokens":
+                tool_result = average_daily_tokens_tool.invoke(call.get("args") or {})
+                tool_outputs.append(ToolMessage(content=tool_result, tool_call_id=call.get("id")))
+        messages.extend([response, *tool_outputs])
+        response = llm.invoke(messages)
     diagnosis = response.content.strip()
 
     output_path = output_path or _default_output_path(md_path)
@@ -284,7 +405,10 @@ def run_diagnosis(md_path: str, records_path: str, static_path: str, output_path
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="FinCost model diagnosis agent")
     parser.add_argument("--md", required=True, help="Path to report markdown file")
-    parser.add_argument("--records", required=True, help="Path to experiment_records JSONL")
+    parser.add_argument(
+        "--records",
+        help="Path to experiment_records JSONL (default: records_path in config.json)",
+    )
     parser.add_argument("--static", required=True, help="Path to static config JSON/JSONL")
     parser.add_argument("--output", help="Optional path to save diagnosis markdown")
     return parser

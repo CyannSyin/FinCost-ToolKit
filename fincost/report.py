@@ -109,6 +109,42 @@ def _resolve_strategy_identifier(records, static_config, llm_model):
     return str(llm_model)
 
 
+def _compute_average_daily_llm_metrics(records):
+    date_days = set()
+    total_latency_ms = 0.0
+    total_input_tokens = 0
+    total_output_tokens = 0
+
+    for record in records:
+        date_raw = record.get("date")
+        if not date_raw:
+            continue
+        date_str = str(date_raw)
+        date_part = date_str.split(" ")[0].split("T")[0]
+        date_days.add(date_part)
+
+        llm_usage = record.get("llm_usage") or {}
+        latency_ms = llm_usage.get("latency_ms")
+        if isinstance(latency_ms, (int, float)):
+            total_latency_ms += float(latency_ms)
+        total_input_tokens += int(llm_usage.get("input_tokens") or 0)
+        total_output_tokens += int(llm_usage.get("output_tokens") or 0)
+
+    date_days_count = len(date_days)
+    if not date_days_count:
+        return 0.0, 0.0, 0.0, 0
+
+    average_daily_latency_ms = total_latency_ms / date_days_count
+    average_daily_input_tokens = total_input_tokens / date_days_count
+    average_daily_output_tokens = total_output_tokens / date_days_count
+    return (
+        average_daily_latency_ms,
+        average_daily_input_tokens,
+        average_daily_output_tokens,
+        date_days_count,
+    )
+
+
 def build_summary_bill_markdown(
     records,
     static_config,
@@ -128,6 +164,12 @@ def build_summary_bill_markdown(
 ):
     start_time, end_time = _resolve_trading_period(records, static_config)
     strategy_id = _resolve_strategy_identifier(records, static_config, llm_model)
+    (
+        average_daily_latency_ms,
+        average_daily_input_tokens,
+        average_daily_output_tokens,
+        date_days_count,
+    ) = _compute_average_daily_llm_metrics(records)
 
     assets = portfolio_state.get("assets", [])
     assets_text = ", ".join(assets) if assets else "N/A"
@@ -149,6 +191,15 @@ def build_summary_bill_markdown(
     net_result = return_profit - float(total_cost)
     average_latency_text = (
         f"{average_latency_ms:.2f} ms" if trade_count else "N/A"
+    )
+    average_daily_latency_text = (
+        f"{average_daily_latency_ms:.2f} ms" if date_days_count else "N/A"
+    )
+    average_daily_input_tokens_text = (
+        f"{average_daily_input_tokens:.2f}" if date_days_count else "N/A"
+    )
+    average_daily_output_tokens_text = (
+        f"{average_daily_output_tokens:.2f}" if date_days_count else "N/A"
     )
 
     lines = [
@@ -209,6 +260,12 @@ def build_summary_bill_markdown(
         "Token Cost",
         _format_money(float(token_total)),
         "",
+        "Average Daily Input Tokens",
+        average_daily_input_tokens_text,
+        "",
+        "Average Daily Output Tokens",
+        average_daily_output_tokens_text,
+        "",
         "Infrastructure Cost",
         _format_money(float(infra_total)),
         "",
@@ -224,6 +281,9 @@ def build_summary_bill_markdown(
         "",
         "Average Latency per Trade",
         average_latency_text,
+        "",
+        "Average Daily LLM Latency",
+        average_daily_latency_text,
         "",
         "## 6. Net Economic Outcome",
         "",
