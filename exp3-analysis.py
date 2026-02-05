@@ -5,20 +5,21 @@ exp3 vs exp1 对比分析：按日统计
 """
 import json
 import os
+import random
 from collections import defaultdict
 
 # 项目根目录
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT, "data")
-EXP1_DIR = os.path.join(DATA_DIR, "exp-1")
-EXP3_DIR = os.path.join(DATA_DIR, "exp-3")
+EXP1_DIR = os.path.join(DATA_DIR, "KDD", "exp-1")
+EXP3_DIR = os.path.join(DATA_DIR, "KDD", "exp-3")
 CONFIG_LLM = os.path.join(ROOT, "config_llm.json")
-MERGED_DAILY = os.path.join(DATA_DIR, "merged_daily.jsonl")
+MERGED_DAILY = os.path.join(DATA_DIR, "merged-daily.jsonl")
 
 # 时间范围：12/1 - 12/31
 DATE_START = "2025-12-01"
 DATE_END = "2025-12-31"
-INITIAL_CASH = 10000.0
+INITIAL_CASH = 100000.0
 
 # 佣金参数（与 fincost/commission 一致）
 COMMISSION_PER_SHARE = 0.005
@@ -88,6 +89,16 @@ def get_day(record_date):
     return s[:10] if " " in s or "T" in s else s
 
 
+def compute_uncertain_total(records, seed=None):
+    """与 fincost 一致：按 trading_days 个数，每个 random.uniform(0, 0.5) 求和。seed 用于可复现。"""
+    trading_days = len(set(get_day(r.get("date")) for r in records if r.get("date")))
+    if trading_days == 0:
+        return 0.0
+    if seed is not None:
+        random.seed(seed)
+    return sum(random.uniform(0.0, 0.5) for _ in range(trading_days))
+
+
 def load_llm_pricing(path=CONFIG_LLM):
     with open(path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
@@ -95,10 +106,24 @@ def load_llm_pricing(path=CONFIG_LLM):
 
 
 def load_static_monthly(static_path):
-    """从 static 文件读 data_subscription_monthly（与 fincost 一致）"""
+    """从 static 文件读 data_subscription_monthly（与 fincost 一致）；支持含注释的 JSON/JSONL"""
     try:
         with open(static_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            lines = f.readlines()
+        json_lines = [line for line in lines if line.strip() and not line.strip().startswith("//")]
+        raw = "".join(json_lines).strip()
+        if not raw:
+            return 0.0
+        if raw.startswith("{"):
+            brace_count = 0
+            for i, char in enumerate(raw):
+                if char == "{": brace_count += 1
+                elif char == "}":
+                    brace_count -= 1
+                    if brace_count == 0:
+                        raw = raw[: i + 1]
+                        break
+        data = json.loads(raw)
         return float(data.get("data_subscription_monthly", 0.0))
     except Exception:
         return 0.0
@@ -235,13 +260,45 @@ def get_model_name(records):
 def main():
     model_pricing = load_llm_pricing()
     prices_by_date = load_daily_buy_prices(MERGED_DAILY)
-    monthly_exp1 = load_static_monthly(os.path.join(EXP1_DIR, "static-DeepSeek-V3-10000.0-daily-2025-12-01_2026-01-30.jsonl"))
-    monthly_exp3 = load_static_monthly(os.path.join(EXP3_DIR, "static-DeepSeek-V3_10000.0_hourly_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl"))
+    monthly_exp1 = load_static_monthly(os.path.join(EXP1_DIR, "static-deepseek-v3.2-fast-100000.0-daily-2025-12-01_2026-01-30.jsonl"))
+    monthly_exp3 = load_static_monthly(os.path.join(EXP3_DIR, "static-deepseek-v3.2-fast_100000.0_hourly_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl"))
 
-    exp1_ds = filter_records(load_jsonl(os.path.join(EXP1_DIR, "experiment_records_DeepSeek-V3_10000.0_2025-12-01_2026-01-30.jsonl")), is_hourly=False)
-    exp1_gpt = filter_records(load_jsonl(os.path.join(EXP1_DIR, "experiment_records_gpt-5.2_10000.0_2025-12-01_2026-01-30.jsonl")), is_hourly=False)
-    exp3_ds = filter_records(load_jsonl(os.path.join(EXP3_DIR, "experiment_records_DeepSeek-V3_10000.0_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl")), is_hourly=True)
-    exp3_gpt = filter_records(load_jsonl(os.path.join(EXP3_DIR, "experiment_records_gpt-5.2_10000.0_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl")), is_hourly=True)
+    exp1_ds = filter_records(
+        load_jsonl(
+            os.path.join(
+                EXP1_DIR,
+                "experiment_records_deepseek-v3.2-fast_100000.0_2025-12-01_2026-01-30.jsonl",
+            )
+        ),
+        is_hourly=False,
+    )
+    exp1_gpt = filter_records(
+        load_jsonl(
+            os.path.join(
+                EXP1_DIR,
+                "experiment_records_gpt-5.2_100000_2025-12-01_2026-1-30.jsonl",
+            )
+        ),
+        is_hourly=False,
+    )
+    exp3_ds = filter_records(
+        load_jsonl(
+            os.path.join(
+                EXP3_DIR,
+                "experiment_records_deepseek-v3.2-fast_100000.0_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl",
+            )
+        ),
+        is_hourly=True,
+    )
+    exp3_gpt = filter_records(
+        load_jsonl(
+            os.path.join(
+                EXP3_DIR,
+                "experiment_records_gpt-5.2_100000.0_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl",
+            )
+        ),
+        is_hourly=True,
+    )
 
     all_rows = []
     for recs, freq, monthly in [
@@ -251,11 +308,14 @@ def main():
         (exp3_gpt, "hourly", monthly_exp3),
     ]:
         model = get_model_name(recs)
+        # 与 fincost 一致：uncertain = 每个交易日 [0, 0.5] 随机数之和；固定 seed 保证可复现
+        seed = sum(ord(c) for c in (model + freq)) % (2**32)
+        uncertain = compute_uncertain_total(recs, seed=seed)
         all_rows.extend(
             daily_rows_for_records(
                 recs, model, freq, model_pricing, prices_by_date,
                 monthly_cost=monthly,
-                uncertain_total=0.0,
+                uncertain_total=uncertain,
             )
         )
 
@@ -275,7 +335,7 @@ def main():
         row = "".join(str(r[c]).ljust(w[i]) for i, c in enumerate(col))
         print(row)
 
-    # 保存 CSV
+    # 保存长表 CSV（原始明细）
     out_path = os.path.join(ROOT, "exp3_daily_comparison.csv")
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(",".join(col) + "\n")
@@ -283,6 +343,42 @@ def main():
             f.write(",".join(str(r[c]) for c in col) + "\n")
     print()
     print(f"已保存: {out_path}")
+
+    # 额外导出 3 个“宽表”：按日期 × (模型-频次)，分别是 gross_profit / net_profit / loss(cost)
+    # 行：日期；列：例如 DeepSeek-V3-hourly, DeepSeek-V3-daily, gpt-5.2-hourly, gpt-5.2-daily
+    by_day_label = {}
+    labels = set()
+    dates = set()
+    for r in all_rows:
+        label = f"{r['模型']}-{r['频次']}"
+        day = r["日期"]
+        dates.add(day)
+        labels.add(label)
+        by_day_label.setdefault(day, {})[label] = r
+    labels = sorted(labels)
+    dates = sorted(dates)
+
+    def write_wide(metric_key: str, filename: str):
+        wide_path = os.path.join(ROOT, filename)
+        with open(wide_path, "w", encoding="utf-8") as f:
+            # 表头：日期 + 各 (模型-频次) 列
+            f.write(",".join(["日期"] + labels) + "\n")
+            for day in dates:
+                row_values = [day]
+                row_map = by_day_label.get(day, {})
+                for label in labels:
+                    cell = ""
+                    rec = row_map.get(label)
+                    if rec is not None:
+                        cell = str(rec.get(metric_key, ""))
+                    row_values.append(cell)
+                f.write(",".join(row_values) + "\n")
+        print(f"已保存: {wide_path}")
+
+    # 这里将 loss 定义为累计成本 cost，便于直接观察“总支出”
+    write_wide("gross_profit", "exp3_table_gross_profit.csv")
+    write_wide("net_profit", "exp3_table_net_profit.csv")
+    write_wide("cost", "exp3_table_loss.csv")
 
 
 if __name__ == "__main__":
