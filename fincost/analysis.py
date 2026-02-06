@@ -1,10 +1,17 @@
 from collections import defaultdict
 from datetime import datetime
+import os
+
+from .config import get_project_root, load_app_config
 
 
 def calculate_token_cost_by_date(records, model_pricing):
     token_usage_by_date = defaultdict(lambda: {"input": 0, "output": 0, "cache": 0})
     token_cost_by_date = defaultdict(float)
+    app_config = load_app_config(os.path.join(get_project_root(), "config.json"))
+    llm_call_success_rate = float(app_config.get("llm_call_success_rate", 1.0) or 1.0)
+    if llm_call_success_rate <= 0:
+        llm_call_success_rate = 1.0
 
     for record in records:
         date = record.get("date")
@@ -31,7 +38,7 @@ def calculate_token_cost_by_date(records, model_pricing):
         input_cost = (input_tokens / 1000.0) * float(prices.get("input_price_per_k_tokens", 0))
         output_cost = (output_tokens / 1000.0) * float(prices.get("output_price_per_k_tokens", 0))
         cache_cost = (cached_tokens / 1000.0) * float(prices.get("cache_price_per_k_tokens", 0))
-        token_cost_by_date[date] += input_cost + output_cost + cache_cost
+        token_cost_by_date[date] += (input_cost + output_cost + cache_cost) / llm_call_success_rate
 
     return token_usage_by_date, token_cost_by_date
 

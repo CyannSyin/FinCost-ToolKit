@@ -11,6 +11,3 @@
   },
   "data_subscription_monthly": 100.0
 }
-
-
-// 命名规则： static-<llm_model>-<initial_cash>-<decision_frequency>-<start_time>-<end_time>.jsonl

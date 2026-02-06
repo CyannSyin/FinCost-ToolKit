@@ -11,6 +11,7 @@ from .analysis import (
 )
 from .commission import extract_actions_and_commission
 from .config import get_project_root, load_app_config, load_llm_pricing, load_static_config
+from .diagnosis_render import render_diagnosis_to_html
 from .plots import plot_cost_pie, plot_performance_lines
 from .render import render_markdown_to_html
 from .agent import run_diagnosis
@@ -108,6 +109,10 @@ def main():
     render_markdown_to_html(bill_markdown_path)
     try:
         run_diagnosis(bill_markdown_path, records_path, static_path)
+        diagnosis_md_path = bill_markdown_path
+        if diagnosis_md_path.endswith(".md"):
+            diagnosis_md_path = f"{diagnosis_md_path[:-3]}-diagnosis.md"
+        render_diagnosis_to_html(diagnosis_md_path)
     except Exception as exc:
         print(f"\n[Warning] Failed to run diagnosis agent: {exc}")
     report_payload = build_report_payload(
