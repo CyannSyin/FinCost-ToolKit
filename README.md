@@ -2,7 +2,7 @@
 
 Cost and performance reporting for LLM-driven trading backtests.
 
-![Overview](figure/overview.pdf)
+![Overview](figure/overview.png)
 
 ## What It Does
 
@@ -10,7 +10,7 @@ Cost and performance reporting for LLM-driven trading backtests.
 (commission, token usage, infra, monthly subscription, and an uncertain add-on),
 then outputs summary reports, charts, and optional diagnosis notes.
 
-![Framework.pdf](figure/framework.pdf)
+![Framework.pdf](figure/framework.png)
 
 ## Quick Start (uv)
 
