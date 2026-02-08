@@ -1,6 +1,6 @@
 {
-  "records_path": "data/KDD/exp-1/experiment_records_glm-4.7_100000.0_2025-12-01_2026-01-30.jsonl",
-  "static_path": "data/KDD/exp-1/static-glm-4.7-100000.0-daily-2025-12-01_2026-01-30.jsonl",
+  "records_path": "data/KDD/exp-3/experiment_records_deepseek-v3.2-fast_100000.0_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl",
+  "static_path": "data/KDD/exp-3/static-deepseek-v3.2-fast_100000.0_hourly_2025-12-01-10-00-00_2025-12-31-15-00-00.jsonl",
   "prices_path": "data/merged.jsonl",
   "agent_model": "gpt-5-mini",
   "llm_call_success_rate": 0.98

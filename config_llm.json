@@ -42,15 +42,20 @@
       "output_price_per_k_tokens": 0.0165,
       "cache_price_per_k_tokens": 0
     },
-    "glm-4.7":{
+    "glm-4.7": {
       "input_price_per_k_tokens": 0.00027,
       "output_price_per_k_tokens": 0.0011,
       "cache_price_per_k_tokens": 0.0000547948
     },
-      "gemini-3-flash-preview": {
-        "input_price_per_k_tokens": 0.0005,
-        "output_price_per_k_tokens": 0.003,
-        "cache_price_per_k_tokens": 0
-      }
+    "gemini-3-flash-preview": {
+      "input_price_per_k_tokens": 0.0005,
+      "output_price_per_k_tokens": 0.003,
+      "cache_price_per_k_tokens": 0
+    },
+    "deepseek-v3.2-fast": {
+      "input_price_per_k_tokens": 0.0011,
+      "output_price_per_k_tokens": 0.00329,
+      "cache_price_per_k_tokens": 0.001096
+    }
   }
 }
