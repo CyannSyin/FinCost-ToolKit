@@ -2,7 +2,7 @@
 
 Cost and performance reporting for LLM-driven trading backtests.
 
-![Overview](figure/overview.png)
+![Overview](figure/Overview.png)
 
 ## What It Does
 
