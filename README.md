@@ -111,11 +111,6 @@ Results are written under `result/<llm_model>-<initial_cash>-<frequency>/`:
 - `pie-chart/*.pdf` cost breakdown (with/without monthly)
 - `line chart/*.pdf` performance vs costs (with/without monthly)
 
-## Tools
-
-- `tools/daily-hourly-compare.py` aggregates daily costs for hourly vs daily
-  experiments and writes `tools/daily-hourly-compare-output.jsonl`.
-
 ## Notes
 
 - `main.py` at repo root delegates to `FinCost.main`.
@@ -123,5 +118,3 @@ Results are written under `result/<llm_model>-<initial_cash>-<frequency>/`:
 - Uncertain cost is randomly sampled in `FinCost.main`.
 - Commission uses IB Fixed pricing (per share, min, max).
 - `llm_call_success_rate` in `config.json` scales token costs.
-- `calculator.py` is a standalone demo script (legacy; `main.py` is preferred).
-
