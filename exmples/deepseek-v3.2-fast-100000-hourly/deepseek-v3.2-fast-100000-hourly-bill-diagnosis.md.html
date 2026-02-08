@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>deepseek-v3.2-fast-100000-hourly-bill-diagnosis.md</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+    body {
+      max-width: 900px;
+      margin: 32px auto;
+      padding: 0 20px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+    }
+    h1, h2, h3 {
+      line-height: 1.25;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 12px 0;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    pre {
+      padding: 12px;
+      overflow-x: auto;
+      background: rgba(0, 0, 0, 0.04);
+    }
+    .chart-block {
+      margin: 12px 0 24px;
+    }
+    .chart-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-start;
+      margin: 12px 0 24px;
+    }
+    .chart-item {
+      flex: 1 1 calc(50% - 8px);
+      max-width: calc(50% - 8px);
+      overflow: hidden;
+    }
+    .chart-grid img,
+    .chart-block img {
+      width: 100%;
+      height: auto;
+      max-height: none;
+      max-width: none;
+    }
+    .chart-grid object,
+    .chart-grid iframe {
+      width: 100%;
+      height: 430px;
+    }
+    .chart-block object,
+    .chart-block iframe {
+      width: 100%;
+      height: 520px;
+    }
+  </style>
+</head>
+<body>
+<h1 id="summary-takeaway">Summary takeaway</h1>
+<p>System produced a small negative return (-1.55% of capital) with low direct monetary costs (Total Cost $312.54) but shows inefficient use of model and execution resources: very high LLM token consumption and long LLM latencies drive stale decisions, unnecessary decision churn (190 trades, hourly frequency), and measurable opportunity/slippage losses. The fastest cost-reduction wins come from reducing decision frequency and adding a lightweight pre-filtering layer; longer-term wins require re-architecting the model pipeline (screening + confirm), prompt engineering, and execution batching.</p>
+<h1 id="1-model-performance-diagnosis">1. Model Performance Diagnosis</h1>
+<h2 id="11-strengths">1.1 Strengths</h2>
+<ul>
+<li>Low monetary operating costs: Total Cost $312.54 relative to $100k capital.</li>
+<li>Diversified asset set (8 large-cap tickers) reducing single-asset idiosyncratic losses.</li>
+<li>Moderate hold ratio (51.6%) indicates the model is not over-trading every decision window.</li>
+<li>Transaction fees themselves are small ($92 total), so execution fees are not the dominant cost.</li>
+</ul>
+<h2 id="12-weaknesses">1.2 Weaknesses</h2>
+<ul>
+<li>Negative profit: -$1,547.57 over the period (≈ -1.55% of initial capital).</li>
+<li>Very high average daily input tokens (1,800,713.45) and overall token_total 40,516,532 — inefficient prompts / repeated context.</li>
+<li>Long LLM latency (Average Daily LLM Latency 1,593,460.64 ms in summary) and per-trade latency (Average Latency per Trade 20,040.41 ms) causing stale decisions and inducing opportunity cost/slippage.</li>
+<li>High trade count for a monthly window (190 trades) given large-cap assets, increasing exposure to execution risk and cumulative slippage.</li>
+<li>Single-agent architecture (agent_count: 1) doing all work serially — limits parallelism and filtering.</li>
+</ul>
+<h2 id="13-anomalies">1.3 Anomalies</h2>
+<ul>
+<li>Disproportionate token input vs. dollar token cost (very high token count but only $63.41 token cost) — indicates inefficient prompt length but low per-token pricing; however cost is not the only harm: latency and throughput impact P&amp;L.</li>
+<li>Analysis-to-decision latency ~13,764 ms suggests non-negligible internal processing that compounds with LLM latency.</li>
+<li>Slippage average -0.64885 (absolute), slippage_pct_avg -0.1548%: not huge but non-trivial given narrow returns.</li>
+</ul>
+<h1 id="2-likely-causes-of-performance-issues">2. Likely Causes of Performance Issues</h1>
+<ul>
+<li>Decision frequency set to hourly causes too many decision opportunities and reactive trades; many trades may be low edge/low information which erode returns.</li>
+<li>Prompt engineering/architecture includes excessive historical/context tokens per decision → high token volumes and long model latencies.</li>
+<li>Single-agent synchronous flow results in sequential LLM calls, increasing latency and decision staleness.</li>
+<li>No lightweight pre-filter or thresholding to prevent marginal trades — increases churn and slippage exposure.</li>
+<li>Model selection (deepseek-v3.2-fast) may be over-provisioned for live hourly decisions; cheaper/smaller models or hybrid screening would preserve decision quality at lower cost and latency.</li>
+</ul>
+<h1 id="3-improvement-suggestions">3. Improvement Suggestions</h1>
+<p>(organized by the required levers: starting capital, model choice, trading frequency, architecture intelligence)</p>
+<p>1) Starting capital
+- Action: Make position sizing conditional on signal confidence and reduce nominal position sizes for low-confidence signals. Implement a minimum expected-return threshold before committing cash.
+  - Rationale / Cost Impact: Reduces realized losses and limits churn-driven turnover for marginal signals, lowering transaction/opportunity costs in proportion to capital deployed.
+- Action: Run a sensitivity test (paper) with reduced capital (e.g., $50k) to validate strategy scaling behavior; if smaller capital reduces trade count materially without hurting edge, prefer lower live allocation.
+  - Rationale: If position sizing scales linearly with capital and increases churn, reducing capital reduces trading volume and direct transaction overhead.</p>
+<p>2) Model choice
+- Action: Implement a hybrid pipeline: a cheap, small model (or rule-based filter) for per-hour screening and reserve deepseek-v3.2-fast only for confirmed signals (e.g., persistent for two windows).
+  - Rationale / Cost Impact: Expect &gt;50% reduction in LLM calls and massive token savings; latency will fall and decisions will be fresher.
+- Action: Reduce prompt size and switch to retrieval-augmented summaries (store rolling summaries/embeddings) so each call sends minimal tokens.
+  - Rationale: Cuts average daily input tokens and LLM latency; smaller prompts also permit using smaller, cheaper models without losing critical context.
+- Action: Evaluate cheaper variants or fine-tuned compact model (distilled deepseek-lite) for live inference; keep the larger model for offline batch retraining.
+  - Rationale: Lower per-call latency and cost while maintaining strategy quality via occasional high-fidelity checks.</p>
+<p>3) Trading frequency
+- Action: Reduce decision_frequency from hourly to 4-hourly or daily for live trading; or implement “signal persistence” rule: require identical signal on N consecutive hourly windows before trading.
+  - Rationale / Cost Impact: Reduces trade_count substantially (target 60–80% fewer trades), reducing cumulative slippage/opportunity costs and token consumption.
+- Action: Add minimum trade-impact or minimum expected-return thresholds (e.g., absolute expected move &gt; X basis points) to avoid micro-churn trades.
+  - Rationale: Prevents executing on noise; reduces transaction count and focus capital on higher-conviction moves.</p>
+<p>4) Architecture intelligence (modules/agents/tools)
+- Action: Add a lightweight pre-filter module (rules + simple indicators) that screens signals and only calls the LLM when the filter indicates potential edge.
+  - Implementation: Rule-based volatility, momentum thresholds, or quick technical checks; if filter false → HOLD without LLM call.
+  - Rationale / Cost Impact: Directly reduces LLM calls and tokens by a large factor quickly; simple to implement (quick win).
+- Action: Batch multi-symbol decisions into a single LLM call (e.g., determine trade list each decision window rather than per-symbol calls).
+  - Rationale: Reduces token overhead and per-decision latency; fewer calls reduce cumulative latency and opportunity cost.
+- Action: Parallelize non-dependent tasks and introduce asynchronous execution: have a separate execution agent that monitors fills and applies execution optimizations (limit orders, VWAP scheduling for larger sizes).
+  - Rationale: Lowers slippage and execution cost; avoids blocking LLM decision pipeline.
+- Action: Implement caching and embeddings retrieval for repeated historical context to reduce tokens and avoid re-sending full history on every call.
+  - Rationale: Major reduction in input token volume with minimal model performance impact.</p>
+<h1 id="4-quick-wins-vs-long-term-improvements">4. Quick Wins vs Long-term Improvements</h1>
+<h2 id="41-quick-wins">4.1 Quick Wins</h2>
+<ul>
+<li>Add a rule-based pre-filter to avoid LLM calls for low-information windows (implement within days).</li>
+<li>Reduce decision_frequency to 4-hourly or require signal persistence for N=2 consecutive hours (implement in configuration).</li>
+<li>Shorten prompts by switching to summary windows (last N data points + summary statistics) and caching historical embeddings.</li>
+<li>Batch symbols into a single LLM call per decision window and/or use a smaller live model for screening.</li>
+<li>Enforce a minimum trade size or expected-return threshold to eliminate micro-trades.</li>
+</ul>
+<p>Expected short-term impact: 40–80% reduction in LLM calls/tokens, ~50% fewer trades, lower average latency and immediate reduction in opportunity cost and slippage exposure.</p>
+<h2 id="42-long-term-improvements">4.2 Long-term Improvements</h2>
+<ul>
+<li>Re-architect to hybrid multi-stage pipeline: rule-based → small model screening → large-model confirmation at lower frequency.</li>
+<li>Distill or fine-tune a smaller model optimized for this strategy; keep the large model for periodic re-evaluation.</li>
+<li>Implement an execution agent with sophisticated order-slicing, limit orders, and slippage-aware placement.</li>
+<li>Add automated monitoring and cost KPIs (tokens/call, latency per decision, trades per dollar of capital) and a feedback loop that adaptively reduces frequency when costs rise.</li>
+<li>Conduct A/B experiments on "decision frequency" and "model stack" to quantify P&amp;L vs cost tradeoffs.</li>
+</ul>
+<p>Expected long-term impact: sustainable lower cost per decision, lower latency, higher effective Sharpe by reducing noise trading and slippage, improved net returns.</p>
+<h1 id="trading-performance-report">Trading Performance Report</h1>
+<h2 id="trading-period">Trading Period:</h2>
+<p>2025-12-01 - 2025-12-31</p>
+<div class="chart-block"><img src="line_chart" alt="daily_line_chart" /></div>
+
+<h2 id="model">Model:</h2>
+<p>deepseek-v3.2-fast-hour-100000</p>
+<h2 id="trades">Trades:</h2>
+<p>190</p>
+<h2 id="decision-counts-buy-hold-sell">Decision counts: BUY , HOLD , SELL</h2>
+<p>BUY 44 , HOLD 98 , SELL 48</p>
+<h2 id="profit-return">Profit / Return:</h2>
+<p>-1547.57</p>
+<h2 id="total-cost">Total Cost:</h2>
+<p>312.54</p>
+<div class="chart-grid"><div class="chart-item"><img src="pie_chart_no_monthly" alt="daily_pie_chart_no_monthly" /></div><div class="chart-item"><img src="pie_chart" alt="daily_pie_chart" /></div></div>
+
+<h2 id="static">Static:</h2>
+<ul>
+<li>Data Subscription
+     100.00</li>
+</ul>
+<h2 id="dynamic">Dynamic:</h2>
+<ul>
+<li>Transaction Cost
+     92.00</li>
+<li>Token Cost
+     63.41</li>
+<li>Infrastructure
+     26.20</li>
+</ul>
+<h2 id="uncertain">Uncertain:</h2>
+<ul>
+<li>Uncertain Cost
+     30.94</li>
+</ul>
+<h2 id="opportunity-cost">Opportunity Cost:</h2>
+<p>38.04</p>
+<h2 id="largest-actionable-loss-driver">Largest actionable loss driver:</h2>
+<p>High decision churn from hourly frequency combined with excessive prompt/token usage and long LLM latency → stale decisions and extra trades that generate slippage/opportunity cost. Evidence: 190 trades in one month, Average Daily Input Tokens 1,800,713.45, Average Latency per Trade 20,040.41 ms, and measurable slippage and opportunity-cost ($38.04).</p>
+<h2 id="top-recommended-immediate-actions-in-priority-order">Top recommended immediate actions (in priority order):</h2>
+<ol>
+<li>Implement a lightweight rule-based pre-filter to block marginal hourly windows from calling the LLM (largest immediate reduction in token usage and calls).</li>
+<li>Reduce decision_frequency from hourly to 4-hourly or require signal persistence over 2 consecutive hours before trading (big cut to trade count and slippage).</li>
+<li>Switch to a hybrid model stack: small/cheaper model for screening + large model only for confirmed signals (reduces calls and latency).</li>
+<li>Shorten prompts and use retrieval-based summaries / caching of historical context to cut average daily input tokens.</li>
+<li>Batch multi-symbol decisions into single LLM calls and add an execution agent that uses limit orders / order-slicing to reduce slippage.</li>
+</ol>
+</body>
+</html>
