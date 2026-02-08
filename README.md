@@ -1,6 +1,15 @@
 # FinCost-Demo
 
-Cost and performance reporting for LLM-driven trading backtests.
+FinCost supports 
+
+(1) measurement that can account for cost attribution in
+multi-factor deployment scenarios and 
+
+(2) optimization that provides
+configuration-level suggestions (controllable knobs) for agentic systems. It
+conducts empirical cost and net profit analysis to reveal optimization
+effectiveness across deployment factors such as backbone LLM model, capital
+scale, trading frequency, and system architecture.
 
 ![Overview](figure/Overview.png)
 
